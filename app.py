@@ -12,7 +12,7 @@ app.secret_key = 'quiz_game_secret_key_change_in_production'
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
 # 👑 ระบุอีเมลของคนที่จะให้สิทธิ์เป็น Admin (สามารถเพิ่มเข้าไปในลิสต์นี้ได้)
-ADMIN_EMAILS = ["6604302001031@student.sru.ac.th", "kru.somchai@gmail.com"]
+ADMIN_EMAILS = ["@student.sru.ac.th", "@sru.ac.th.com"]
 
 # ชุดคำถาม 15 ข้อ
 questions = [

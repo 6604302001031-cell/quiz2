@@ -25,7 +25,7 @@
             text-align: center;
         }
 
-        /* 🚪 สไตล์สำหรับแถบ Logout ด้านบนสุดของผู้เล่น */
+        /* 🚪 สไตล์สำหรับแถบ Header ด้านบนสุดของผู้เล่น */
         .player-header-bar {
             display: flex;
             justify-content: space-between;
@@ -43,6 +43,23 @@
         .player-info span {
             color: #2196f3;
         }
+        
+        /* 🏆 สไตล์สำหรับส่วนจัดการด้านขวา (คะแนน + ปุ่มออก) */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .score-badge {
+            background-color: #ff9800;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+        }
+
         .btn-logout {
             background-color: #6c757d;
             color: white;
@@ -137,7 +154,10 @@
         <div class="player-info">
             👤 ผู้เล่น: <span>{{ session.name }}</span>
         </div>
-        <a href="/logout" class="btn-logout">🚪 ออกจากระบบ</a>
+        <div class="header-actions">
+            <div class="score-badge">🏆 คะแนน: <span id="player-score">0</span></div>
+            <a href="/logout" class="btn-logout">🚪 ออก</a>
+        </div>
     </div>
 
     <div id="waiting-screen" class="waiting-box">
@@ -165,7 +185,6 @@
 </div>
 
 <script>
-    // ดึงข้อมูล Player ID จาก session email (เชื่อมโยงกับระบบล็อกอิน Google)
     const playerId = "{{ session.email }}";
     const playerName = "{{ session.name }}";
 
@@ -175,6 +194,11 @@
         fetch('/api/state')
         .then(res => res.json())
         .then(data => {
+            // 👇 อัปเดตคะแนนผู้เล่น (ดึงค่า player_score จาก Backend หรือแสดงเป็น 0 หากไม่มี)
+            if (data.player_score !== undefined) {
+                document.getElementById('player-score').innerText = data.player_score;
+            }
+
             const waitingScreen = document.getElementById('waiting-screen');
             const quizScreen = document.getElementById('quiz-screen');
             
@@ -198,7 +222,6 @@
                 document.getElementById('submit-btn').innerText = 'ส่งคำตอบ (Submit)';
                 document.getElementById('result-message').innerText = '';
                 
-                // โฟกัสช่องตอบอัตโนมัติ
                 setTimeout(() => document.getElementById('answer-input').focus(), 100);
             }
 
@@ -238,7 +261,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                school: playerName, // แสดงชื่อผู้เล่นบนบอร์ดคะแนนแอดมิน
+                school: playerName, 
                 player_id: playerId,
                 answer: answerText
             })

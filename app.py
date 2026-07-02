@@ -51,6 +51,9 @@ def login_page():
         if session['role'] == 'admin':
             return redirect(url_for('admin'))
         elif session['role'] == 'user':
+            # 🌟 เช็กเพิ่ม: ถ้าล็อกอินเป็น user แล้วแต่ยังไม่ได้ระบุโรงเรียน ให้บังคับไปหน้ากรอกโรงเรียนก่อน
+            if 'school' not in session:
+                return redirect(url_for('select_school_page'))
             return redirect(url_for('user'))
     return render_template('login.html', client_id=GOOGLE_CLIENT_ID)
 
@@ -77,23 +80,48 @@ def google_auth():
             return jsonify({'status': 'success', 'redirect': '/admin'})
         else:
             session['role'] = 'user'
-            return jsonify({'status': 'success', 'redirect': '/user'})
+            # 🌟 สำหรับ User ทั่วไป บังคับส่งไปหน้าระบุชื่อโรงเรียนก่อนเข้าเกม
+            return jsonify({'status': 'success', 'redirect': '/select-school'})
             
     except ValueError:
         return jsonify({'status': 'error', 'message': 'Token ไม่ถูกต้องหรือหมดอายุการใช้งาน'}), 401
 
+# 🌟 ROUTE ใหม่: หน้าแสดงฟอร์ม UI ให้กรอกชื่อโรงเรียน
+@app.route('/select-school')
+def select_school_page():
+    if session.get('role') != 'user':
+        return redirect(url_for('login_page'))
+    return render_template('select_school.html')
+
+# 🌟 API ใหม่: บันทึกชื่อโรงเรียนที่ผู้เล่นกรอกลงสู่ระบบ Session
+@app.route('/api/save-school', methods=['POST'])
+def save_school():
+    if session.get('role') != 'user':
+        return jsonify({'status': 'error', 'message': 'ไม่มีสิทธิ์การใช้งาน'}), 403
+        
+    data = request.json or {}
+    school_name = data.get('school', '').strip()
+    
+    if not school_name:
+        return jsonify({'status': 'error', 'message': 'กรุณากรอกชื่อโรงเรียน'}), 400
+        
+    session['school'] = school_name
+    return jsonify({'status': 'success', 'redirect': '/user'})
+
 @app.route('/admin')
 def admin():
-    # 🛠️ แก้ไขจาก url_for('index') เป็น url_for('login_page') เพื่อป้องกันระบบพัง
     if session.get('role') != 'admin':
         return redirect(url_for('login_page'))
     return render_template('admin.html')
 
 @app.route('/user')
 def user():
-    # เช็กสิทธิ์ว่าต้องเป็นผู้เล่นที่ผ่านการล็อกอินเข้ามาแล้วเท่านั้น
+    # 🌟 เช็กสิทธิ์ความปลอดภัยคูณสอง: ต้องล็อกอิน และต้องกรอกโรงเรียนแล้วเท่านั้น
     if session.get('role') != 'user':
         return redirect(url_for('login_page'))
+    if 'school' not in session:
+        return redirect(url_for('select_school_page'))
+        
     return render_template('user.html')
 
 @app.route('/logout')
@@ -128,13 +156,15 @@ def get_state():
 
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
-    data = request.json
-    school_name = data.get("school", "").strip()
+    data = request.json or {}
+    
+    # 🌟 ดึงชื่อโรงเรียนจาก Session หลังบ้านโดยตรงเพื่อความแม่นยำ ปลอดภัย และลดภาระหน้าบ้าน
+    school_name = session.get('school') or data.get("school", "").strip()
     player_id = data.get("player_id", "")
     answer = data.get("answer", "").strip().lower()
     
     if not school_name:
-        return jsonify({"status": "error", "message": "กรุณากรอกชื่อโรงเรียน"})
+        return jsonify({"status": "error", "message": "ไม่พบข้อมูลชื่อโรงเรียนของคุณ"})
         
     idx = game_state["current_index"]
     if idx >= len(questions):

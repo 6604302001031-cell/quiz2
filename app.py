@@ -11,9 +11,6 @@ app.secret_key = 'quiz_game_secret_key_change_in_production'
 # 🔑 นำ Google Client ID ที่คุณได้มาจาก Google Cloud Console มาใส่ที่นี่
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
-# 👑 ระบุอีเมลของคนที่จะให้สิทธิ์เป็น Admin (สามารถเพิ่มเข้าไปในลิสต์นี้ได้)
-ADMIN_EMAILS = ["@student.sru.ac.th", "@sru.ac.th.com"]
-
 # ชุดคำถาม 15 ข้อ
 questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10"},
@@ -74,8 +71,8 @@ def google_auth():
         session['email'] = email
         session['name'] = name
         
-        # จุดคัดกรอง: ตรวจสอบว่าอีเมลตรงกับรายชื่อแอดมินที่ตั้งไว้หรือไม่
-        if email in [e.lower() for e in ADMIN_EMAILS]:
+        # ✨ จุดคัดกรอง: ตรวจสอบความลงท้ายของโดเมนอีเมลมหาวิทยาลัยเพื่อแจกสิทธิ์ Admin
+        if email.endswith('@student.sru.ac.th') or email.endswith('@sru.ac.th'):
             session['role'] = 'admin'
             return jsonify({'status': 'success', 'redirect': '/admin'})
         else:
@@ -87,9 +84,9 @@ def google_auth():
 
 @app.route('/admin')
 def admin():
-    # เช็กสิทธิ์ว่าถ้าไม่ใช่ admin จริงๆ จะถูกเตะกลับไปหน้าแรก
+    # 🛠️ แก้ไขจาก url_for('index') เป็น url_for('login_page') เพื่อป้องกันระบบพัง
     if session.get('role') != 'admin':
-        return redirect(url_for('index'))
+        return redirect(url_for('login_page'))
     return render_template('admin.html')
 
 @app.route('/user')
@@ -102,7 +99,7 @@ def user():
 @app.route('/logout')
 def logout():
     session.clear()  # ล้างค่าจำเซสชันทั้งหมด
-    return redirect(url_for('login_page'))  # ✨ แก้ไขจุดวงเล็บค้างที่ทำระบบพังเรียบร้อยครับ!
+    return redirect(url_for('login_page'))
 
 # ==========================================
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน

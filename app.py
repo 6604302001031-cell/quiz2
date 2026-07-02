@@ -89,7 +89,7 @@ def google_auth():
 def admin():
     # เช็กสิทธิ์ว่าถ้าไม่ใช่ admin จริงๆ จะถูกเตะกลับไปหน้าแรก
     if session.get('role') != 'admin':
-        return redirect(url_for('login_page'))
+        return redirect(url_for('index'))
     return render_template('admin.html')
 
 @app.route('/user')

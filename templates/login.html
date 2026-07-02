@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ - ระบบตอบคำถามออนไลน์</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: 'Sarabun', Arial, sans-serif;
+            background-color: #f5f7fb;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-card {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 {
+            color: #333333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #6c757d;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            color: #f44336;
+            margin-top: 15px;
+            font-weight: bold;
+            display: none; /* ซ่อนไว้ก่อน จะแสดงเมื่อมี Error */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <h1>🏆 ระบบตอบคำถามออนไลน์</h1>
+        <p>กรุณาเข้าสู่ระบบด้วยบัญชี Google เพื่อเข้าสู่ห้องแข่งขัน</p>
+
+        <div class="button-container">
+            <div id="g_id_onload"
+                 data-client_id="{{ client_id }}"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+
+        <div id="error-msg" class="error-message"></div>
+    </div>
+
+    <script>
+        // ฟังก์ชันนี้จะทำงานอัตโนมัติเมื่อผู้ใช้ล็อกอินผ่าน Google สำเร็จ
+        function handleCredentialResponse(response) {
+            // ส่ง Token ที่ได้จาก Google ไปให้เซิร์ฟเวอร์ Python ตรวจสอบ
+            fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // ถ้าสำเร็จ ให้เปลี่ยนหน้าไปยัง URL ที่เซิร์ฟเวอร์บอกมา (/admin หรือ /user)
+                    window.location.href = data.redirect;
+                } else {
+                    // ถ้ามีข้อผิดพลาด ให้แสดงข้อความแจ้งเตือน
+                    const errorDiv = document.getElementById('error-msg');
+                    errorDiv.innerText = '❌ ' + data.message;
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                const errorDiv = document.getElementById('error-msg');
+                errorDiv.innerText = '❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+                errorDiv.style.display = 'block';
+            });
+        }
+    </script>
+
+</body>
+</html>

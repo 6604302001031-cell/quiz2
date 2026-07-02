@@ -33,11 +33,12 @@ questions = [
 # ตัวแปรสถานะการทำงานของระบบเกม
 game_state = {
     "is_started": False,
+    "is_end": False,       # เพิ่มสถานะเพื่อเช็กว่าจบการแข่งขันหรือยัง
     "current_index": 0,
     "is_time_up": False,
-    "school_scores": {},   # คะแนนรวมโรงเรียน
-    "player_scores": {},   # คะแนนแยกบุคคล
-    "current_answers": {}  # พักคำตอบของข้อปัจจุบันเอาไว้ก่อน ยังไม่คิดคะแนนทันที
+    "school_scores": {},   # คะแนนรวมโรงเรียน {"ชื่อโรงเรียน": คะแนน}
+    "player_scores": {},   # คะแนนแยกบุคคล {"อีเมล": คะแนน}
+    "current_answers": {}  # พักคำตอบของข้อปัจจุบันเอาไว้ก่อน {"อีเมล": {"answer": "คำตอบ", "school": "โรงเรียน", "name": "ชื่อ"}}
 }
 
 # ==========================================
@@ -46,12 +47,10 @@ game_state = {
 
 @app.route('/')
 def login_page():
-    # ถ้าผู้ใช้งานเคยล็อกอินค้างไว้อยู่แล้ว ให้ส่งไปยังหน้าที่ถูกต้องทันทีโดยไม่ต้องล็อกอินซ้ำ
     if 'role' in session:
         if session['role'] == 'admin':
             return redirect(url_for('admin'))
         elif session['role'] == 'user':
-            # 🌟 เช็กเพิ่ม: ถ้าล็อกอินเป็น user แล้วแต่ยังไม่ได้ระบุโรงเรียน ให้บังคับไปหน้ากรอกโรงเรียนก่อน
             if 'school' not in session:
                 return redirect(url_for('select_school_page'))
             return redirect(url_for('user'))
@@ -65,35 +64,29 @@ def google_auth():
         return jsonify({'status': 'error', 'message': 'ไม่พบข้อมูล Token จาก Google'}), 400
         
     try:
-        # ตรวจสอบความถูกต้องและความปลอดภัยของ Token โดยคุยกับเซิร์ฟเวอร์ Google
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
         email = idinfo.get('email', '').strip().lower()
         name = idinfo.get('name', 'ผู้เล่น')
         
-        # บันทึกข้อมูลพื้นฐานลงใน Session ของผู้ใช้รายนั้นๆ
         session['email'] = email
         session['name'] = name
         
-        # ✨ จุดคัดกรอง: ตรวจสอบความลงท้ายของโดเมนอีเมลมหาวิทยาลัยเพื่อแจกสิทธิ์ Admin
         if email.endswith('@student.sru.ac.th') or email.endswith('@sru.ac.th'):
             session['role'] = 'admin'
             return jsonify({'status': 'success', 'redirect': '/admin'})
         else:
             session['role'] = 'user'
-            # 🌟 สำหรับ User ทั่วไป บังคับส่งไปหน้าระบุชื่อโรงเรียนก่อนเข้าเกม
             return jsonify({'status': 'success', 'redirect': '/select-school'})
             
     except ValueError:
         return jsonify({'status': 'error', 'message': 'Token ไม่ถูกต้องหรือหมดอายุการใช้งาน'}), 401
 
-# 🌟 ROUTE ใหม่: หน้าแสดงฟอร์ม UI ให้กรอกชื่อโรงเรียน
 @app.route('/select-school')
 def select_school_page():
     if session.get('role') != 'user':
         return redirect(url_for('login_page'))
     return render_template('select_school.html')
 
-# 🌟 API ใหม่: บันทึกชื่อโรงเรียนที่ผู้เล่นกรอกลงสู่ระบบ Session
 @app.route('/api/save-school', methods=['POST'])
 def save_school():
     if session.get('role') != 'user':
@@ -116,7 +109,6 @@ def admin():
 
 @app.route('/user')
 def user():
-    # 🌟 เช็กสิทธิ์ความปลอดภัยคูณสอง: ต้องล็อกอิน และต้องกรอกโรงเรียนแล้วเท่านั้น
     if session.get('role') != 'user':
         return redirect(url_for('login_page'))
     if 'school' not in session:
@@ -126,18 +118,127 @@ def user():
 
 @app.route('/logout')
 def logout():
-    session.clear()  # ล้างค่าจำเซสชันทั้งหมด
+    session.clear()
     return redirect(url_for('login_page'))
 
 # ==========================================
-# 🎮 ระบบควบคุมเกมและคำนวณคะแนน
+# 🎮 ระบบควบคุมเกมและคำนวณคะแนน (ส่วนที่แก้ไขและต่อเติม)
 # ==========================================
 
 @app.route('/api/start', methods=['POST'])
 def start_game():
     game_state["is_started"] = True
-    return jsonify({"status": "success", "message": "Game has started!"})
+    game_state["is_end"] = False
+    game_state["current_index"] = 0
+    game_state["is_time_up"] = False
+    game_state["current_answers"] = {}
+    return jsonify({"status": "success", "message": "เริ่มเกมเรียบร้อยแล้ว!"})
 
 @app.route('/api/state')
 def get_state():
-    idx = game_state
+    # ตรวจสอบว่าคำถามหมดหรือยัง ถ้าหมดแล้วให้เปลี่ยนสถานะเป็นจบเกม (is_end = True)
+    is_end = game_state["is_end"] or (game_state["current_index"] >= len(questions))
+    
+    current_q = ""
+    if game_state["is_started"] and game_state["current_index"] < len(questions):
+        current_q = questions[game_state["current_index"]]["q"]
+        
+    return jsonify({
+        "is_started": game_state["is_started"],
+        "is_time_up": game_state["is_time_up"],
+        "is_end": is_end,
+        "current_number": game_state["current_index"] + 1,
+        "question": current_q,
+        "school_scores": game_state["school_scores"]
+    })
+
+@app.route('/api/timeout', methods=['POST'])
+def trigger_timeout():
+    if not game_state["is_started"]:
+        return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
+        
+    game_state["is_time_up"] = True
+    
+    # 🏆 ส่วนคำนวณตรวจคำตอบและแจกคะแนนเมื่อหมดเวลาข้อนั้นๆ
+    current_idx = game_state["current_index"]
+    if current_idx < len(questions):
+        correct_answer = questions[current_idx]["a"]
+        
+        for email, player_data in game_state["current_answers"].items():
+            # ดักจับเพื่อป้องกันไม่ให้คิดคะแนนซ้ำหากแอดมินกดปุ่มซ้ำ
+            if player_data.get("evaluated", False):
+                continue
+                
+            # ถ้าคำตอบที่ผู้เล่นส่งมา ตรงกับคำตอบที่ถูกต้อง
+            if player_data["answer"].strip() == correct_answer.strip():
+                school = player_data["school"]
+                
+                # เพิ่มคะแนนให้โรงเรียน (บวกข้อละ 1 คะแนน)
+                game_state["school_scores"][school] = game_state["school_scores"].get(school, 0) + 1
+                # เพิ่มคะแนนแยกตามรายบุคคล
+                game_state["player_scores"][email] = game_state["player_scores"].get(email, 0) + 1
+            
+            player_data["evaluated"] = True
+            
+    return jsonify({"status": "success", "message": "หมดเวลาข้อนี้และคำนวณคะแนนแล้ว"})
+
+@app.route('/api/next', methods=['POST'])
+def next_question():
+    if not game_state["is_started"]:
+        return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
+        
+    game_state["current_index"] += 1
+    game_state["is_time_up"] = False
+    game_state["current_answers"] = {}  # เคลียร์กล่องรับคำตอบเพื่อเตรียมรับคำตอบข้อถัดไป
+    
+    if game_state["current_index"] >= len(questions):
+        game_state["is_end"] = True
+        
+    return jsonify({"status": "success", "message": "เปลี่ยนเป็นข้อถัดไปเรียบร้อย"})
+
+@app.route('/api/reset', methods=['POST'])
+def reset_game():
+    game_state["is_started"] = False
+    game_state["is_end"] = False
+    game_state["current_index"] = 0
+    game_state["is_time_up"] = False
+    game_state["school_scores"] = {}
+    game_state["player_scores"] = {}
+    game_state["current_answers"] = {}
+    return jsonify({"status": "success", "message": "รีเซ็ตระบบเกมทั้งหมดเรียบร้อยแล้ว"})
+
+# 📥 API เพิ่มเติมสำหรับฝั่งผู้เล่น (user.html) ส่งข้อมูลคำตอบเข้ามา
+@app.route('/api/submit', methods=['POST'])
+def submit_answer():
+    if session.get('role') != 'user':
+        return jsonify({'status': 'error', 'message': 'ไม่มีสิทธิ์ส่งคำตอบ'}), 403
+        
+    if not game_state["is_started"] or game_state["is_time_up"] or game_state["is_end"]:
+        return jsonify({'status': 'error', 'message': 'ระบบไม่ได้เปิดรับคำตอบในขณะนี้'}), 400
+        
+    data = request.json or {}
+    player_answer = data.get('answer', '').strip()
+    
+    email = session.get('email')
+    school = session.get('school', 'ไม่ระบุโรงเรียน')
+    name = session.get('name', 'ผู้เล่น')
+    
+    # บันทึกคำตอบส่งเข้าสู่กล่องพักคำตอบกลาง
+    game_state["current_answers"][email] = {
+        "answer": player_answer,
+        "school": school,
+        "name": name,
+        "evaluated": False
+    }
+    
+    return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
+
+# 📥 API ดึงคะแนนส่วนบุคคล (สำหรับโชว์บนหน้าจอฝั่งผู้เล่น)
+@app.route('/api/my-score')
+def get_my_score():
+    email = session.get('email')
+    score = game_state["player_scores"].get(email, 0)
+    return jsonify({"score": score})
+
+if __name__ == '__main__':
+    app.run(debug=True)

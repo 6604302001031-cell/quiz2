@@ -222,8 +222,8 @@
         <button onclick="resumeTimer()" class="btn btn-green" id="btn-resume" style="display: none;">▶️ นับเวลาต่อ (Resume)</button>
     </div>
 
-    <button onclick="triggerTimeout()" class="btn btn-orange" id="btn-timeout">⏱️ หมดเวลาข้อนี้ (Timeout)</button>
-    <button onclick="controlGame('/api/next')" class="btn btn-blue" id="btn-next">⏩ ข้อถัดไป (Next Question)</button>
+    <button onclick="triggerTimeout()" class="btn btn-orange" id="btn-timeout" style="display: none;">⏱️ หมดเวลาข้อนี้ (Timeout)</button>
+    <button onclick="controlGame('/api/next')" class="btn btn-blue" id="btn-next" style="display: none;">⏩ ข้อถัดไป (Next Question)</button>
     
     <button onclick="openScoreModal()" class="btn btn-purple">📊 กดดูคะแนนทีม (View Scores)</button>
     
@@ -316,9 +316,9 @@
         document.getElementById('btn-pause').style.display = 'block';
         document.getElementById('btn-resume').style.display = 'none';
         updateTimerDisplay();
+        document.getElementById('game-status-text').innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบจากผู้เล่น';
     }
 
-    // ฟังก์ชัน เปิด/ปิด หน้าต่างป๊อปอัพคะแนน
     function openScoreModal() {
         document.getElementById('score-modal').style.display = 'flex';
     }
@@ -333,7 +333,10 @@
 
     function controlGame(url) {
         fetch(url, { method: 'POST' })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        })
         .then(data => { checkGameState(); })
         .catch(err => console.error('Error controlling game:', err));
     }
@@ -343,15 +346,26 @@
         isPaused = false;
         document.getElementById('timer-display').innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
         fetch('/api/timeout', { method: 'POST' })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        })
         .then(data => { checkGameState(); })
         .catch(err => console.error('Error triggering timeout:', err));
     }
 
     function checkGameState() {
         fetch('/api/state')
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error('Server Error (Status: ' + res.status + ')');
+            }
+            return res.json();
+        })
         .then(data => {
+            // ดักจับกรณีข้อมูลจาก Backend ส่งมาไม่ครบถ้วน
+            if (!data || typeof data.is_started === 'undefined') return;
+
             const statusText = document.getElementById('game-status-text');
             const questionInfo = document.getElementById('question-info');
             const timerControlGroup = document.getElementById('timer-control-group');
@@ -395,34 +409,40 @@
                     statusText.innerHTML = '<span class="status-dot dot-red"></span> ยังไม่เริ่มเกม';
                     questionInfo.innerText = 'โจทย์ปัจจุบัน: รอแอดมินกดเริ่มเกม';
                 } else if (data.is_end) {
-                    statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
+                    statusText.innerHTML = '<span class="status-dot dot-red"></span> Сิ้นสุดการแข่งขัน';
                     questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
                 } else if (data.is_time_up) {
                     statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
-                    questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
+                    questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question || 'ไม่มีข้อความโจทย์'}`;
                 } else {
                     statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบจากผู้เล่น';
-                    questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
+                    questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question || 'ไม่มีข้อความโจทย์'}`;
                 }
             }
 
-            updateScoreBoard(data.school_scores);
+            if (data.school_scores) {
+                updateScoreBoard(data.school_scores);
+            }
         })
-        .catch(err => console.error('Error fetching state:', err));
+        .catch(err => {
+            console.error('Error fetching state:', err);
+            // แสดงแจ้งเตือนบนหน้าจอแอดมินหากหลังบ้านพัง
+            document.getElementById('game-status-text').innerHTML = '<span class="status-dot dot-red"></span> เซิร์ฟเวอร์ขัดข้อง (Backend Error)';
+        });
     }
 
     function updateScoreBoard(schoolScores) {
         const tbody = document.getElementById('score-board-body');
+        if (!schoolScores || Object.keys(schoolScores).length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#868e96;">ยังไม่มีคะแนนสะสม</td></tr>';
+            return;
+        }
+
         let scoresArray = Object.keys(schoolScores).map(school => {
             return { name: school, score: schoolScores[school] };
         });
         
         scoresArray.sort((a, b) => b.score - a.score);
-
-        if (scoresArray.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#868e96;">ยังไม่มีคะแนนสะสม</td></tr>';
-            return;
-        }
 
         let html = '';
         scoresArray.forEach((item, index) => {

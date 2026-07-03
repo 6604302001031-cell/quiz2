@@ -25,7 +25,6 @@
             text-align: center;
         }
         
-        /* 🚪 สไตล์สำหรับแถบ Logout ด้านบนสุด */
         .admin-header-bar {
             display: flex;
             justify-content: space-between;
@@ -122,7 +121,6 @@
         .btn-green { background-color: #2ecc71; color: white; }
         .btn-green:hover { background-color: #27ae60; }
         
-        /* 📊 ปุ่มดูคะแนนทีมสีม่วงเด่นชัด */
         .btn-purple { background-color: #9c27b0; color: white; margin-top: 10px; }
         .btn-purple:hover { background-color: #7b1fa2; }
         
@@ -138,7 +136,6 @@
             margin-bottom: 0;
         }
 
-        /* 🏛️ ระบบหน้าต่างหน้าป๊อปอัพคะแนน (Modal) */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -283,17 +280,22 @@
 
     function runCountdown() {
         if (isPaused) return;
-        timeLeft--;
-        updateTimerDisplay();
+        if (timeLeft > 0) {
+            timeLeft--;
+            updateTimerDisplay();
+        }
         if (timeLeft <= 0) {
             clearInterval(countdownInterval);
-            triggerTimeout(); 
+            // 🌟 แก้ไข: ไม่เรียกใช้ triggerTimeout() อัตโนมัติที่นี่ เพื่อป้องกันการยิงซ้ำซ้อน 
+            // ให้ฝั่ง Backend หรือปุ่มแอดมินเป็นคนจัดการสถานะโดยตรงอย่างปลอดภัย
+            const timerDisplay = document.getElementById('timer-display');
+            timerDisplay.innerText = `🔒 หมดเวลาส่งคำตอบแล้ว (รอแอดมินกดสรุป)`;
         }
     }
 
     function startTimer() {
         if (countdownInterval) clearInterval(countdownInterval); 
-        timeLeft = 120;
+        timeLeft = 120; // รีเซ็ตเวลาเริ่มต้นของข้อใหม่เป็น 120 วินาทีเสมอ
         isPaused = false;
         document.getElementById('btn-pause').style.display = 'block';
         document.getElementById('btn-resume').style.display = 'none';
@@ -332,6 +334,13 @@
     }
 
     function controlGame(url) {
+        // ถ้าเป็นการกดเริ่มเกมใหม่ หรือรีเซ็ต ให้ล้างการทำงานของเวลาก่อนหน้าทิ้งทันที
+        if (url.includes('start') || url.includes('reset')) {
+            if (countdownInterval) clearInterval(countdownInterval);
+            timeLeft = 120;
+            lastQuestionNumber = 0;
+        }
+
         fetch(url, { method: 'POST' })
         .then(res => {
             if (!res.ok) throw new Error('Network response was not ok');
@@ -344,6 +353,7 @@
     function triggerTimeout() {
         if (countdownInterval) clearInterval(countdownInterval);
         isPaused = false;
+        timeLeft = 0;
         document.getElementById('timer-display').innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
         fetch('/api/timeout', { method: 'POST' })
         .then(res => {
@@ -357,13 +367,10 @@
     function checkGameState() {
         fetch('/api/state')
         .then(res => {
-            if (!res.ok) {
-                throw new Error('Server Error (Status: ' + res.status + ')');
-            }
+            if (!res.ok) throw new Error('Server Error');
             return res.json();
         })
         .then(data => {
-            // ดักจับกรณีข้อมูลจาก Backend ส่งมาไม่ครบถ้วน
             if (!data || typeof data.is_started === 'undefined') return;
 
             const statusText = document.getElementById('game-status-text');
@@ -372,13 +379,16 @@
             
             if (data.is_started) {
                 document.getElementById('btn-start').style.display = 'none';
-                document.getElementById('btn-timeout').style.display = 'block';
-                document.getElementById('btn-next').style.display = 'block';
                 
-                if (!data.is_time_up && !data.is_end) {
-                    timerControlGroup.style.display = 'flex';
-                } else {
+                // ตรวจสอบสถานะเพื่อเปิด/ปิดปุ่มควบคุมให้สอดคล้องกัน
+                if (data.is_time_up || data.is_end) {
+                    document.getElementById('btn-timeout').style.display = 'none';
+                    document.getElementById('btn-next').style.display = data.is_end ? 'none' : 'block';
                     timerControlGroup.style.display = 'none';
+                } else {
+                    document.getElementById('btn-timeout').style.display = 'block';
+                    document.getElementById('btn-next').style.display = 'none';
+                    timerControlGroup.style.display = 'flex';
                 }
             } else {
                 document.getElementById('btn-start').style.display = 'block';
@@ -392,6 +402,7 @@
                 isPaused = false;
             }
 
+            // จัดการเริ่มเวลานับถอยหลังเมื่อขึ้นข้อใหม่จริง ๆ เท่านั้น
             if (data.is_started && !data.is_time_up && !data.is_end) {
                 if (data.current_number !== lastQuestionNumber) {
                     lastQuestionNumber = data.current_number;
@@ -409,7 +420,7 @@
                     statusText.innerHTML = '<span class="status-dot dot-red"></span> ยังไม่เริ่มเกม';
                     questionInfo.innerText = 'โจทย์ปัจจุบัน: รอแอดมินกดเริ่มเกม';
                 } else if (data.is_end) {
-                    statusText.innerHTML = '<span class="status-dot dot-red"></span> Сิ้นสุดการแข่งขัน';
+                    statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
                     questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
                 } else if (data.is_time_up) {
                     statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
@@ -426,7 +437,6 @@
         })
         .catch(err => {
             console.error('Error fetching state:', err);
-            // แสดงแจ้งเตือนบนหน้าจอแอดมินหากหลังบ้านพัง
             document.getElementById('game-status-text').innerHTML = '<span class="status-dot dot-red"></span> เซิร์ฟเวอร์ขัดข้อง (Backend Error)';
         });
     }

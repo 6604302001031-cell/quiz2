@@ -90,3 +90,231 @@
             font-size: 24px;
             text-align: center;
             box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus {
+            border-color: #2196f3;
+            outline: none;
+        }
+        .btn {
+            font-size: 20px;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            width: 100%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-blue {
+            background-color: #2196f3;
+            color: white;
+        }
+        .btn-blue:hover {
+            background-color: #0b7dda;
+        }
+        .btn-blue:disabled {
+            background-color: #ced4da;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        /* ⏳ หน้าจอรอสัญญาณ */
+        .waiting-box {
+            padding: 30px;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+        .loader {
+            font-size: 50px;
+            margin-bottom: 15px;
+            animation: spin 2s linear infinite;
+            display: inline-block;
+        }
+        /* 📝 หน้าจอทำโจทย์ */
+        .quiz-box {
+            display: none;
+        }
+        .status-alert {
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="player-container">
+    <div class="player-header-bar">
+        <div class="player-info">
+            👤 ผู้เล่น: <span>{{ session.name }}</span>
+        </div>
+        <div class="header-actions">
+            <div class="score-badge">🏆 คะแนน: <span id="player-score">0</span></div>
+            <a href="/logout" class="btn-logout">🚪 ออก</a>
+        </div>
+    </div>
+
+    <div id="waiting-screen" class="waiting-box">
+        <div class="loader">⏳</div>
+        <h2>กรุณารอสักครู่...</h2>
+        <p style="color: #6c757d; font-size: 16px;">
+            อีเมลของคุณ: <span id="player-email-tag" style="font-weight: bold; color: #2196f3;">{{ session.email }}</span>
+        </p>
+        <p style="color: #868e96;">แผงส่งคำตอบจะแสดงขึ้นมาเมื่อแอดมินกดเริ่มเกม</p>
+    </div>
+
+    <div id="quiz-screen" class="quiz-box">
+        <h2 id="question-number">ส่งคำตอบข้อที่ -</h2>
+
+        <form id="answer-form" onsubmit="submitAnswer(event)">
+            <div class="input-group">
+                <input type="text" id="answer-input" placeholder="พิมพ์คำตอบของคุณที่นี่..." required autocomplete="off">
+            </div>
+
+            <button type="submit" id="submit-btn" class="btn btn-blue">ส่งคำตอบ (Submit)</button>
+        </form>
+        
+        <div id="result-message" class="status-alert"></div>
+    </div>
+</div>
+
+<script>
+    // ดึงค่าตัวแปรจาก Session ของ Flask
+    const playerId = "{{ session.email }}";
+    const playerName = "{{ session.name }}";
+
+    let currentQuestionNumber = 0;
+
+    // 🌟 ดึงคะแนนล่าสุดของตนเองมาแสดงผล
+    function fetchMyScore() {
+        fetch('/api/my-score')
+        .then(res => res.json())
+        .then(data => {
+            if (data.score !== undefined) {
+                document.getElementById('player-score').innerText = data.score;
+            }
+        })
+        .catch(err => console.error('Error fetching score:', err));
+    }
+
+    // 🔄 ตรวจสอบสถานะของเกม (Real-time Sync)
+    function checkGameState() {
+        fetch('/api/state')
+        .then(res => res.json())
+        .then(data => {
+            const waitingScreen = document.getElementById('waiting-screen');
+            const quizScreen = document.getElementById('quiz-screen');
+            
+            // กรณีที่เกมยังไม่เริ่ม หรือถูกรีเซ็ต
+            if (!data.is_started) {
+                waitingScreen.style.display = 'block';
+                quizScreen.style.display = 'none';
+                document.getElementById('answer-input').value = '';
+                document.getElementById('result-message').innerText = '';
+                document.getElementById('submit-btn').disabled = false;
+                return;
+            }
+
+            // แสดงหน้าจอทำโจทย์
+            waitingScreen.style.display = 'none';
+            quizScreen.style.display = 'block';
+
+            // ตรวจสอบว่ามีการเปลี่ยนข้อคำถามใหม่หรือไม่
+            if (data.current_number !== currentQuestionNumber) {
+                currentQuestionNumber = data.current_number;
+                document.getElementById('answer-input').value = ''; 
+                document.getElementById('answer-input').disabled = false;
+                document.getElementById('submit-btn').disabled = false;
+                document.getElementById('submit-btn').innerText = 'ส่งคำตอบ (Submit)';
+                document.getElementById('result-message').innerText = '';
+                
+                setTimeout(() => document.getElementById('answer-input').focus(), 100);
+            }
+
+            // ตรวจสอบสถานะจบการแข่งขัน หรือ หมดเวลา
+            if (data.is_end) {
+                document.getElementById('question-number').innerText = '🏁 สิ้นสุดการแข่งขัน';
+                document.getElementById('answer-form').style.display = 'none';
+            } else {
+                document.getElementById('question-number').innerText = `ส่งคำตอบข้อที่ ${data.current_number}`;
+                document.getElementById('answer-form').style.display = 'block';
+
+                if (data.is_time_up) {
+                    document.getElementById('answer-input').disabled = true;
+                    document.getElementById('submit-btn').disabled = true;
+                    document.getElementById('submit-btn').innerText = '🔒 หมดเวลาส่งคำตอบ';
+                    if(!document.getElementById('result-message').innerText.includes('ส่งคำตอบเรียบร้อย')) {
+                        document.getElementById('result-message').innerHTML = '<span style="color: #f44336;">❌ คุณไม่ได้ส่งคำตอบในเวลากำหนด</span>';
+                    }
+                }
+            }
+        })
+        .catch(err => console.error('Error fetching game state:', err));
+    }
+
+    // 📤 ฟังก์ชันส่งคำตอบไปยัง Backend
+    function submitAnswer(event) {
+        event.preventDefault();
+        
+        const answerText = document.getElementById('answer-input').value.trim();
+        const submitBtn = document.getElementById('submit-btn');
+        const resultMsg = document.getElementById('result-message');
+
+        if (!answerText) return;
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'กำลังส่ง...';
+
+        // ส่งข้อมูลโครงสร้างแปรผันตรงตามโมเดลจับคู่ใน app.py
+        fetch('/api/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                school: playerName,   // 🌟 ส่งชื่อผู้เล่นกลับไปเป็นคีย์สำหรับคะแนนทีม (Admin Dashboard)
+                player_id: playerId,  // 🌟 ส่งอีเมลกลับไปจับคู่คะแนนเดี่ยว (User Dashboard)
+                answer: answerText
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                resultMsg.innerHTML = '<span style="color: #4caf50;">✅ ส่งคำตอบเรียบร้อย!</span>';
+                submitBtn.innerText = 'ส่งคำตอบสำเร็จแล้ว';
+                document.getElementById('answer-input').disabled = true;
+                
+                // ดึงคะแนนใหม่ทันทีหลังส่งข้อมูลสำเร็จ
+                fetchMyScore(); 
+            } else {
+                resultMsg.innerHTML = `<span style="color: #f44336;">⚠️ เกิดข้อผิดพลาด: ${data.message}</span>`;
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'ส่งคำตอบ (Submit)';
+            }
+        })
+        .catch(err => {
+            console.error('Error submitting answer:', err);
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'ส่งคำตอบ (Submit)';
+        });
+    }
+
+    // ⏱️ ตั้งเวลาให้ทำงานอัตโนมัติแบบ Real-time ทุกๆ 1 วินาที
+    setInterval(() => {
+        checkGameState();
+        fetchMyScore();
+    }, 1000);
+    
+    // โหลดข้อมูลทันทีเมื่อเปิดหน้าจอ
+    window.onload = () => {
+        checkGameState();
+        fetchMyScore();
+    };
+</script>
+
+</body>
+</html>

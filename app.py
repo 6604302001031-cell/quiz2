@@ -30,7 +30,7 @@ questions = [
     {"q": "15 + 15 เท่ากับเท่าไร?", "a": "30"}
 ]
 
-# 📊 ตัวแปรเก็บสถานะเกม (ปรับโครงสร้างให้อ่านง่ายและแม่นยำยิ่งขึ้น)
+# 📊 ตัวแปรเก็บสถานะเกม
 game_state = {
     "is_started": False,
     "is_end": False,
@@ -125,12 +125,13 @@ def start_game():
 
 @app.route('/api/state')
 def get_state():
-    # ป้องกันกรณีดัชนีข้อเกินจำนวนคำถามจริง
+    # 🌟 แก้ไข: ล็อกขอบเขตดัชนีข้อให้ปลอดภัยและแม่นยำ ไม่ให้ทะลุความยาวของคำถามจริง
     if game_state["current_index"] >= len(questions):
         game_state["is_end"] = True
+        game_state["current_index"] = len(questions) - 1
 
     current_q = ""
-    if game_state["is_started"] and not game_state["is_end"] and game_state["current_index"] < len(questions):
+    if game_state["is_started"] and not game_state["is_end"]:
         current_q = questions[game_state["current_index"]]["q"]
         
     return jsonify({
@@ -155,12 +156,12 @@ def trigger_timeout():
     
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
-        for email, player_data in game_state["current_answers"].items():
+        # 🌟 แก้ไข: ครอบด้วย list() เพื่อป้องกันปัญหา Error เมื่อข้อมูลขัดแย้งกันขณะวนลูปดึงข้อมูล (Race Condition)
+        for email, player_data in list(game_state["current_answers"].items()):
             if player_data.get("evaluated", False):
                 continue
                 
             school = player_data["school"]
-            # 🌟 การันตีว่าชื่อโรงเรียน/ทีม จะต้องปรากฏบนตารางแม้จะได้ 0 คะแนน เพื่อป้องกันปัญหาตารางว่างเปล่า
             if school not in game_state["school_scores"]:
                 game_state["school_scores"][school] = 0
                 
@@ -182,10 +183,11 @@ def next_question():
         
     current_idx = game_state["current_index"]
     
-    # ตรวจคำตอบที่ตกค้าง (ถ้ามี) ก่อนข้ามข้อ
+    # 1. ตรวจคำตอบที่ตกค้าง (ถ้ามี) ก่อนข้ามข้อ
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
-        for email, player_data in game_state["current_answers"].items():
+        # 🌟 แก้ไข: ครอบด้วย list() เช่นกันเพื่อความสถียร
+        for email, player_data in list(game_state["current_answers"].items()):
             if not player_data.get("evaluated", False):
                 school = player_data["school"]
                 if school not in game_state["school_scores"]:
@@ -196,15 +198,17 @@ def next_question():
                     game_state["player_scores"][email] = game_state["player_scores"].get(email, 0) + 1
                 player_data["evaluated"] = True
 
-    # ขยับดัชนีข้อถัดไป
+    # 2. 🌟 แก้ไขหลัก: เช็กขอบเขตคำถามก่อนขยับขึ้น หากเป็นข้อสุดท้ายแล้วให้เซ็ตจบการแข่งขันทันที ไม่ให้บวกเลขเพิ่มพลการ
+    if (game_state["current_index"] + 1) >= len(questions):
+        game_state["is_end"] = True
+        return jsonify({"status": "success", "message": "สิ้นสุดการแข่งขันแล้ว", "is_end": True})
+
+    # ขยับดัชนีข้อถัดไปกรณีที่ยังมีข้อเหลืออยู่
     game_state["current_index"] += 1
     game_state["is_time_up"] = False
     game_state["current_answers"] = {} 
-    
-    if game_state["current_index"] >= len(questions):
-        game_state["is_end"] = True
         
-    return jsonify({"status": "success", "message": "เปลี่ยนเป็นข้อถัดไปเรียบร้อย"})
+    return jsonify({"status": "success", "message": "เปลี่ยนเป็นข้อถัดไปเรียบร้อย", "is_end": False})
 
 @app.route('/api/reset', methods=['POST'])
 def reset_game():

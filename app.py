@@ -5,8 +5,6 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 app = Flask(__name__)
-
-# 🔑 กำหนด Secret Key สำหรับเซสชัน
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
@@ -29,7 +27,6 @@ questions = [
     {"q": "15 + 15 เท่ากับเท่าไร?", "a": "30"}
 ]
 
-# 📂 ใช้ path ไฟล์ที่มีสิทธิ์การเขียน/อ่านชดเชยที่ปลอดภัยที่สุดบนเซิร์ฟเวอร์สภาพแวดล้อมต่างๆ
 DB_FILE = "/tmp/game_database.json"
 
 DEFAULT_STATE = {
@@ -43,7 +40,6 @@ DEFAULT_STATE = {
 }
 
 def load_db():
-    """โหลดข้อมูลสถานะเกมรวมถึงคะแนนจากฐานข้อมูลจำลองไฟล์ JSON"""
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -53,7 +49,6 @@ def load_db():
     return DEFAULT_STATE.copy()
 
 def save_db(data):
-    """บันทึกข้อมูลสถานะเกมและคะแนนทั้งหมดลงไฟล์ JSON ทันที"""
     try:
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
@@ -63,6 +58,17 @@ def save_db(data):
 def is_correct(ans1, ans2):
     return str(ans1).replace(" ", "").lower() == str(ans2).replace(" ", "").lower()
 
+# 🌟 ฟังก์ชันคำนวณคะแนนโบนัสทีม (ตามโจทย์: 3 คน=5 แต้ม, 2 คน=3 แต้ม)
+def calculate_team_points(correct_count):
+    sets_of_three = correct_count // 3  # จับกลุ่มทีละ 3 คน
+    remainder = correct_count % 3       # เศษที่เหลือ
+    
+    points = sets_of_three * 5
+    if remainder == 2:
+        points += 3
+    elif remainder == 1:
+        points += 1
+    return points
 
 # ==========================================
 # 🏠 เส้นทางหลัก (Routing Pages)
@@ -180,23 +186,26 @@ def trigger_timeout():
     
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
+        school_correct_counts = {}
         
+        # นับจำนวนคนที่ตอบถูกในแต่ละโรงเรียนสำหรับข้อนี้
         for email, player_data in list(db["current_answers"].items()):
-            if player_data.get("evaluated", False):
-                continue
+            if not player_data.get("evaluated", False):
+                school = player_data["school"] or "ไม่ระบุสังกัด"
                 
-            school = player_data["school"]
-            if not school:
-                school = "ไม่ระบุสังกัด"
+                if is_correct(player_data["answer"], correct_answer):
+                    school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
+                    db["player_scores"][email] = db["player_scores"].get(email, 0) + 1 # ผู้เล่นรายคนยังได้ +1 เสมอ
                 
+                player_data["evaluated"] = True
+                
+        # นำจำนวนคนที่ตอบถูกมาคำนวณและบวกเข้าคะแนนทีม
+        for school, count in school_correct_counts.items():
             if school not in db["school_scores"]:
                 db["school_scores"][school] = 0
-                
-            if is_correct(player_data["answer"], correct_answer):
-                db["school_scores"][school] += 1
-                db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
             
-            player_data["evaluated"] = True
+            earned_points = calculate_team_points(count)
+            db["school_scores"][school] += earned_points
             
     save_db(db)
     current_q = questions[current_idx]["q"] if current_idx < len(questions) else ""
@@ -219,19 +228,25 @@ def next_question():
         
     current_idx = db["current_index"]
     
-    # ประมวลผลเก็บตกคะแนน
+    # ประมวลผลเก็บตกคะแนน (กรณีที่แอดมินกด Next เลยโดยไม่ได้กด Timeout)
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
+        school_correct_counts = {}
+        
         for email, player_data in list(db["current_answers"].items()):
             if not player_data.get("evaluated", False):
                 school = player_data["school"] or "ไม่ระบุสังกัด"
-                if school not in db["school_scores"]:
-                    db["school_scores"][school] = 0
-                    
                 if is_correct(player_data["answer"], correct_answer):
-                    db["school_scores"][school] += 1
+                    school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
                     db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
                 player_data["evaluated"] = True
+                
+        for school, count in school_correct_counts.items():
+            if school not in db["school_scores"]:
+                db["school_scores"][school] = 0
+            
+            earned_points = calculate_team_points(count)
+            db["school_scores"][school] += earned_points
 
     if (current_idx + 1) >= len(questions):
         db["is_end"] = True
@@ -282,7 +297,6 @@ def submit_answer():
     player_answer = data.get('answer', '')
     email = session.get('email') or data.get('player_id')
     
-    # 🌟 จุดสำคัญ: ดึงสังกัด (School) ของผู้เรียนมาบันทึก หากไม่พบคะแนนจะได้ไม่เป็นค่าว่าง
     school = data.get('school') or session.get('name') or "ไม่ระบุสังกัด"
     name = session.get('name', 'ผู้เล่น')
     

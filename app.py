@@ -1,18 +1,15 @@
 import os
-import json
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 app = Flask(__name__)
 
-# 🔑 กำหนด Secret Key สำหรับใช้ระบบ Session
-app.secret_key = 'quiz_game_secret_key_change_in_production'
+# 🔑 กำหนด Secret Key (สำคัญมากสำหรับการเข้ารหัสข้อมูลสถานะเกมลงใน Session)
+app.secret_key = 'quiz_game_secure_session_key_production'
 
-# 🔑 Google Client ID
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
-# 📝 ชุดคำถาม 15 ข้อ
 questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10"},
     {"q": "1 + 1 เท่ากับเท่าไร?", "a": "2"},
@@ -31,11 +28,8 @@ questions = [
     {"q": "15 + 15 เท่ากับเท่าไร?", "a": "30"}
 ]
 
-# 📂 กำหนดที่อยู่ไฟล์สำหรับเก็บสถานะเกมชั่วคราวบนเซิร์ฟเวอร์ (รองรับ Vercel /tmp)
-STATE_FILE = "/tmp/game_state.json"
-
-# ค่าเริ่มต้นของเกม
-DEFAULT_STATE = {
+# 📊 ตัวแปร Global สำรองสำหรับผู้เล่นทั่วไปดึงข้อมูล (จะ Sync ค่าจาก Session ของแอดมินเสมอ)
+GLOBAL_GAME_STATE = {
     "is_started": False,
     "is_end": False,
     "current_index": 0,
@@ -45,23 +39,28 @@ DEFAULT_STATE = {
     "current_answers": {} 
 }
 
-def load_game_state():
-    """โหลดสถานะเกมมาจากไฟล์ JSON"""
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return DEFAULT_STATE.copy()
-    return DEFAULT_STATE.copy()
+def init_admin_session():
+    """สร้างข้อมูลสถานะเริ่มต้นใน Session ของแอดมิน หากยังไม่มีอยู่"""
+    if "is_started" not in session:
+        session["is_started"] = False
+        session["is_end"] = False
+        session["current_index"] = 0
+        session["is_time_up"] = False
+        session["school_scores"] = {}
+        session["player_scores"] = {}
+        session["current_answers"] = {}
+    sync_to_global()
 
-def save_game_state(state):
-    """บันทึกสถานะเกมลงไฟล์ JSON"""
-    try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"Error saving state file: {e}")
+def sync_to_global():
+    """คัดลอกสถานะจาก Session ของแอดมินไปไว้ที่ Global ตัวกลาง เพื่อให้ผู้เล่นเข้าถึงได้"""
+    global GLOBAL_GAME_STATE
+    GLOBAL_GAME_STATE["is_started"] = session.get("is_started", False)
+    GLOBAL_GAME_STATE["is_end"] = session.get("is_end", False)
+    GLOBAL_GAME_STATE["current_index"] = session.get("current_index", 0)
+    GLOBAL_GAME_STATE["is_time_up"] = session.get("is_time_up", False)
+    GLOBAL_GAME_STATE["school_scores"] = session.get("school_scores", {})
+    GLOBAL_GAME_STATE["player_scores"] = session.get("player_scores", {})
+    GLOBAL_GAME_STATE["current_answers"] = session.get("current_answers", {})
 
 def is_correct(ans1, ans2):
     return str(ans1).replace(" ", "").lower() == str(ans2).replace(" ", "").lower()
@@ -88,6 +87,7 @@ def login_page():
 def admin_dashboard():
     if session.get('role') != 'admin':
         return "สิทธิ์การเข้าถึงถูกปฏิเสธ: หน้านี้สำหรับอาจารย์/ผู้ดูแลระบบเท่านั้น", 403
+    init_admin_session()
     return render_template('admin.html')
 
 @app.route('/logout')
@@ -97,20 +97,18 @@ def logout():
 
 
 # ==========================================
-# 🔐 ระบบยืนยันตัวตน และแยกสิทธิ์ (Authentication)
+# 🔐 ระบบยืนยันตัวตน (Authentication)
 # ==========================================
 
 @app.route('/api/google-login', methods=['POST'])
 def google_login():
     data = request.json or {}
     token = data.get('token')
-    
     if not token:
         return jsonify({"status": "error", "message": "ไม่พบ Token"}), 400
         
     try:
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
-        
         email = idinfo.get('email', '').lower()
         name = idinfo.get('name')
         
@@ -122,6 +120,9 @@ def google_login():
         session['email'] = email
         session['name'] = name
         
+        if session['role'] == 'admin':
+            init_admin_session()
+            
         return jsonify({"status": "success", "message": "ล็อกอินสำเร็จ"})
     except ValueError:
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
@@ -136,126 +137,202 @@ def start_game():
     if session.get('role') != 'admin':
         return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
     
-    # โหลด อัปเดต และเซฟลงไฟล์ทันที
-    state = load_game_state()
-    state["is_started"] = True
-    state["is_end"] = False
-    state["current_index"] = 0
-    state["is_time_up"] = False
-    state["current_answers"] = {}
-    save_game_state(state)
+    session["is_started"] = True
+    session["is_end"] = False
+    session["current_index"] = 0
+    session["is_time_up"] = False
+    session["current_answers"] = {}
     
-    return jsonify({"status": "success", "message": "เริ่มเกมเรียบร้อยแล้ว!"})
+    # บังคับอัปเดตสเตตัสลง Object ชั่วคราวเพื่อส่งคืน UI ทันที
+    session.modified = True
+    sync_to_global()
+    
+    current_q = questions[0]["q"]
+    return jsonify({
+        "status": "success",
+        "state": {
+            "is_started": True, "is_time_up": False, "is_end": False,
+            "current_number": 1, "question": current_q, "school_scores": session["school_scores"]
+        }
+    })
 
 @app.route('/api/state')
 def get_state():
-    state = load_game_state()
-    
-    if state["current_index"] >= len(questions):
-        state["is_end"] = True
-        state["current_index"] = len(questions) - 1
-        save_game_state(state)
+    # ถ้าผู้ใช้เป็นแอดมิน ให้ดึงข้อมูลและอัปเดตผ่าน Session เสมอ
+    if session.get('role') == 'admin':
+        init_admin_session()
+        if session["current_index"] >= len(questions):
+            session["is_end"] = True
+            session["current_index"] = len(questions) - 1
+            session.modified = True
+            sync_to_global()
 
-    current_q = ""
-    if state["is_started"] and not state["is_end"]:
-        current_q = questions[state["current_index"]]["q"]
-        
-    return jsonify({
-        "is_started": state["is_started"],
-        "is_time_up": state["is_time_up"],
-        "is_end": state["is_end"],
-        "current_number": state["current_index"] + 1,
-        "question": current_q,
-        "school_scores": state["school_scores"]
-    })
+        current_q = ""
+        if session["is_started"] and not session["is_end"]:
+            current_q = questions[session["current_index"]]["q"]
+            
+        return jsonify({
+            "is_started": session["is_started"],
+            "is_time_up": session["is_time_up"],
+            "is_end": session["is_end"],
+            "current_number": session["current_index"] + 1,
+            "question": current_q,
+            "school_scores": session["school_scores"]
+        })
+    else:
+        # หากเป็นผู้เล่นทั่วไป ให้ดึงข้อมูลจากตัวแปรตัวกลาง Global 
+        curr_idx = GLOBAL_GAME_STATE["current_index"]
+        current_q = ""
+        if GLOBAL_GAME_STATE["is_started"] and not GLOBAL_GAME_STATE["is_end"] and curr_idx < len(questions):
+            current_q = questions[curr_idx]["q"]
+            
+        return jsonify({
+            "is_started": GLOBAL_GAME_STATE["is_started"],
+            "is_time_up": GLOBAL_GAME_STATE["is_time_up"],
+            "is_end": GLOBAL_GAME_STATE["is_end"],
+            "current_number": curr_idx + 1,
+            "question": current_q,
+            "school_scores": GLOBAL_GAME_STATE["school_scores"]
+        })
 
 @app.route('/api/timeout', methods=['POST'])
 def trigger_timeout():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    state = load_game_state()
-    if not state["is_started"]:
+    init_admin_session()
+    if not session["is_started"]:
         return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
         
-    state["is_time_up"] = True
-    current_idx = state["current_index"]
+    session["is_time_up"] = True
+    current_idx = session["current_index"]
     
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
-        for email, player_data in list(state["current_answers"].items()):
+        answers = session.get("current_answers", {})
+        school_scores = session.get("school_scores", {})
+        player_scores = session.get("player_scores", {})
+        
+        for email, player_data in list(answers.items()):
             if player_data.get("evaluated", False):
                 continue
                 
             school = player_data["school"]
-            if school not in state["school_scores"]:
-                state["school_scores"][school] = 0
+            if school not in school_scores:
+                school_scores[school] = 0
                 
             if is_correct(player_data["answer"], correct_answer):
-                state["school_scores"][school] += 1
-                state["player_scores"][email] = state["player_scores"].get(email, 0) + 1
+                school_scores[school] += 1
+                player_scores[email] = player_scores.get(email, 0) + 1
             
             player_data["evaluated"] = True
             
-    save_game_state(state)
-    return jsonify({"status": "success", "message": "หมดเวลาข้อนี้และคำนวณคะแนนแล้ว"})
+        session["school_scores"] = school_scores
+        session["player_scores"] = player_scores
+        session["current_answers"] = answers
+
+    session.modified = True
+    sync_to_global()
+    
+    current_q = questions[current_idx]["q"] if current_idx < len(questions) else ""
+    return jsonify({
+        "status": "success",
+        "state": {
+            "is_started": True, "is_time_up": True, "is_end": session["is_end"],
+            "current_number": current_idx + 1, "question": current_q, "school_scores": session["school_scores"]
+        }
+    })
 
 @app.route('/api/next', methods=['POST'])
 def next_question():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    state = load_game_state()
-    if not state["is_started"]:
+    init_admin_session()
+    if not session["is_started"]:
         return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
         
-    current_idx = state["current_index"]
+    current_idx = session["current_index"]
+    answers = session.get("current_answers", {})
+    school_scores = session.get("school_scores", {})
+    player_scores = session.get("player_scores", {})
     
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
-        for email, player_data in list(state["current_answers"].items()):
+        for email, player_data in list(answers.items()):
             if not player_data.get("evaluated", False):
                 school = player_data["school"]
-                if school not in state["school_scores"]:
-                    state["school_scores"][school] = 0
+                if school not in school_scores:
+                    school_scores[school] = 0
                     
                 if is_correct(player_data["answer"], correct_answer):
-                    state["school_scores"][school] += 1
-                    state["player_scores"][email] = state["player_scores"].get(email, 0) + 1
+                    school_scores[school] += 1
+                    player_scores[email] = player_scores.get(email, 0) + 1
                 player_data["evaluated"] = True
 
-    if (state["current_index"] + 1) >= len(questions):
-        state["is_end"] = True
-        save_game_state(state)
-        return jsonify({"status": "success", "message": "สิ้นสุดการแข่งขันแล้ว", "is_end": True})
+    if (current_idx + 1) >= len(questions):
+        session["is_end"] = True
+        session["school_scores"] = school_scores
+        session["player_scores"] = player_scores
+        session.modified = True
+        sync_to_global()
+        return jsonify({
+            "status": "success", 
+            "state": {
+                "is_started": True, "is_time_up": True, "is_end": True,
+                "current_number": current_idx + 1, "question": "", "school_scores": session["school_scores"]
+            }
+        })
 
-    state["current_index"] += 1
-    state["is_time_up"] = False
-    state["current_answers"] = {} 
-    save_game_state(state)
-        
-    return jsonify({"status": "success", "message": "เปลี่ยนเป็นข้อถัดไปเรียบร้อย", "is_end": False})
+    session["current_index"] = current_idx + 1
+    session["is_time_up"] = False
+    session["current_answers"] = {} 
+    session["school_scores"] = school_scores
+    session["player_scores"] = player_scores
+    
+    session.modified = True
+    sync_to_global()
+    
+    next_q = questions[session["current_index"]]["q"]
+    return jsonify({
+        "status": "success",
+        "state": {
+            "is_started": True, "is_time_up": False, "is_end": False,
+            "current_number": session["current_index"] + 1, "question": next_q, "school_scores": session["school_scores"]
+        }
+    })
 
 @app.route('/api/reset', methods=['POST'])
 def reset_game():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    save_game_state(DEFAULT_STATE)
-    return jsonify({"status": "success", "message": "รีเซ็ตระบบเกมทั้งหมดเรียบร้อยแล้ว"})
+    session["is_started"] = False
+    session["is_end"] = False
+    session["current_index"] = 0
+    session["is_time_up"] = False
+    session["school_scores"] = {}
+    session["player_scores"] = {}
+    session["current_answers"] = {}
+    
+    session.modified = True
+    sync_to_global()
+    
+    return jsonify({
+        "status": "success",
+        "state": {
+            "is_started": False, "is_time_up": False, "is_end": False,
+            "current_number": 1, "question": "รอแอดมินกดเริ่มเกม", "school_scores": {}
+        }
+    })
 
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
-    if session.get('role') != 'user':
-        return jsonify({'status': 'error', 'message': 'ไม่มีสิทธิ์ส่งคำตอบ (หน้านี้สำหรับผู้เล่นทั่วไป)'}), 403
-        
-    state = load_game_state()
-    if not state["is_started"] or state["is_time_up"] or state["is_end"]:
+    if GLOBAL_GAME_STATE["is_time_up"] or GLOBAL_GAME_STATE["is_end"] or not GLOBAL_GAME_STATE["is_started"]:
         return jsonify({'status': 'error', 'message': 'ระบบไม่ได้เปิดรับคำตอบในขณะนี้'}), 400
         
     data = request.json or {}
     player_answer = data.get('answer', '')
-    
     email = session.get('email') or data.get('player_id')
     school = session.get('name') or data.get('school') 
     name = session.get('name', 'ผู้เล่น')
@@ -263,23 +340,19 @@ def submit_answer():
     if not email:
         return jsonify({'status': 'error', 'message': 'ไม่พบข้อมูลผู้ใช้งาน กรุณาล็อกอินใหม่'}), 401
         
-    state["current_answers"][email] = {
+    GLOBAL_GAME_STATE["current_answers"][email] = {
         "answer": player_answer,
         "school": school, 
         "name": name,
         "evaluated": False
     }
-    save_game_state(state)
-    
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
 
 @app.route('/api/my-score')
 def get_my_score():
-    state = load_game_state()
     email = session.get('email')
-    score = state["player_scores"].get(email, 0)
+    score = GLOBAL_GAME_STATE["player_scores"].get(email, 0)
     return jsonify({"score": score})
-
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

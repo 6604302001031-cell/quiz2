@@ -261,7 +261,7 @@
     let countdownInterval = null;
     let stateCheckInterval = null;
     let isPaused = false; 
-    let isActionInProgress = false; // บล็อกการกดปุ่มซ้ำซ้อนป้องกัน Race Condition
+    let isActionInProgress = false; // ตัวล็อกระดับ Global ป้องกันปุ่มเบิ้ลและป้องกันการดึงสถานะเก่ามาเขียนทับ
 
     function updateTimerDisplay() {
         const timerDisplay = document.getElementById('timer-display');
@@ -352,14 +352,17 @@
         });
     }
 
-    // 🌟 ปรับปรุงการ Control เกม: หยุด Polling ชั่วคราวก่อนยิงคำสั่ง ป้องกันหน้าจอเด้งกลับ
+    // 🌟 ปรับปรุง: หยุดการเรียกเช็กสถานะอัตโนมัติทันทีที่กดปุ่ม เพื่อป้องกันลูปขี่กัน (Race Condition)
     function controlGame(url) {
         if (isActionInProgress) return;
         isActionInProgress = true;
         toggleButtonsState(true);
 
-        // หยุดตรวจสอบสถานะและเวลาชั่วคราวทันทีขณะรอดำเนินการ
-        if (stateCheckInterval) clearInterval(stateCheckInterval);
+        // ตัดลูปทั้งหมดทิ้งทันทีก่อนส่ง Request
+        if (stateCheckInterval) {
+            clearInterval(stateCheckInterval);
+            stateCheckInterval = null;
+        }
         if (countdownInterval) {
             clearInterval(countdownInterval);
             countdownInterval = null;
@@ -376,19 +379,23 @@
             return res.json();
         })
         .then(data => { 
-            // รอดีเลย์เล็กน้อยเพื่อให้ฝั่ง Backend เคลียร์ State สมบูรณ์ แล้วค่อยดึงสถานะใหม่
+            // หน่วงเวลา 350ms เพื่อให้เซิร์ฟเวอร์บันทึกข้อมูลเสร็จสิ้น ค่อยเปิดดึงสถานะใหม่
             setTimeout(() => {
                 isActionInProgress = false;
                 toggleButtonsState(false);
                 checkGameState();
-                stateCheckInterval = setInterval(checkGameState, 1000); // เริ่ม Polling ใหม่
-            }, 400);
+                if (!stateCheckInterval) {
+                    stateCheckInterval = setInterval(checkGameState, 1000);
+                }
+            }, 350);
         })
         .catch(err => {
             console.error('Error controlling game:', err);
             isActionInProgress = false;
             toggleButtonsState(false);
-            stateCheckInterval = setInterval(checkGameState, 1000);
+            if (!stateCheckInterval) {
+                stateCheckInterval = setInterval(checkGameState, 1000);
+            }
         });
     }
 
@@ -397,7 +404,10 @@
         isActionInProgress = true;
         toggleButtonsState(true);
 
-        if (stateCheckInterval) clearInterval(stateCheckInterval);
+        if (stateCheckInterval) {
+            clearInterval(stateCheckInterval);
+            stateCheckInterval = null;
+        }
         if (countdownInterval) {
             clearInterval(countdownInterval);
             countdownInterval = null;
@@ -416,19 +426,23 @@
                 isActionInProgress = false;
                 toggleButtonsState(false);
                 checkGameState();
-                stateCheckInterval = setInterval(checkGameState, 1000);
-            }, 400);
+                if (!stateCheckInterval) {
+                    stateCheckInterval = setInterval(checkGameState, 1000);
+                }
+            }, 350);
         })
         .catch(err => {
             console.error('Error triggering timeout:', err);
             isActionInProgress = false;
             toggleButtonsState(false);
-            stateCheckInterval = setInterval(checkGameState, 1000);
+            if (!stateCheckInterval) {
+                stateCheckInterval = setInterval(checkGameState, 1000);
+            }
         });
     }
 
     function checkGameState() {
-        if (isActionInProgress) return; // ถ้ากำลังกดปุ่มอยู่ ห้ามดึงสถานะมาทับซ้อน
+        if (isActionInProgress) return; // หากมีการกดปุ่มอยู่ ลูปดึงสถานะจะไม่ทำงานมาทับซ้อนข้อมูล
 
         fetch('/api/state')
         .then(res => {
@@ -469,7 +483,7 @@
                 isPaused = false;
             }
 
-            // เริ่มนับเวลาใหม่เฉพาะเมื่อตัวเลขข้อขยับเพิ่มขึ้นจริงจากการยืนยันของ Server
+            // เริ่มนับเวลาใหม่เฉพาะเมื่อ Server ยืนยันว่าขยับเลขข้อเพิ่มขึ้นจริงเท่านั้น
             if (data.is_started && !data.is_time_up && !data.is_end) {
                 if (data.current_number !== lastQuestionNumber) {
                     lastQuestionNumber = data.current_number;
@@ -534,7 +548,7 @@
         tbody.innerHTML = html;
     }
 
-    // กำหนดลูปเริ่มต้นอย่างปลอดภัย
+    // เปิดลูปเริ่มต้นทำงาน
     stateCheckInterval = setInterval(checkGameState, 1000);
     window.onload = checkGameState;
 </script>

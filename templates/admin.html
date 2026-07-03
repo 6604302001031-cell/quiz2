@@ -285,15 +285,21 @@
             updateTimerDisplay();
         }
         if (timeLeft <= 0) {
-            clearInterval(countdownInterval);
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
             const timerDisplay = document.getElementById('timer-display');
             timerDisplay.innerText = `🔒 หมดเวลาส่งคำตอบแล้ว (รอแอดมินกดสรุป)`;
         }
     }
 
     function startTimer() {
-        if (countdownInterval) clearInterval(countdownInterval); 
-        timeLeft = 120; // รีเซ็ตเวลาเริ่มต้นของข้อใหม่เป็น 120 วินาทีเสมอ
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+        timeLeft = 120; 
         isPaused = false;
         document.getElementById('btn-pause').style.display = 'block';
         document.getElementById('btn-resume').style.display = 'none';
@@ -331,10 +337,14 @@
         }
     }
 
-    // 🌟 แก้ไข: จัดการปุ่มควบคุมอย่างปลอดภัย ไม่ให้ตัวแปรฝั่งหน้าจอรวนไปแทรกแซงเลขข้อหลังกดปุ่มส่งงาน
+    // 🌟 แก้ไขจุดกระโดดข้ามข้อ: ล้างลูปเวลาเดิมทันทีที่แอดมินกดสั่งงาน ป้องกันการยิงคำสั่งซ้อน
     function controlGame(url) {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+
         if (url.includes('start') || url.includes('reset')) {
-            if (countdownInterval) clearInterval(countdownInterval);
             timeLeft = 120;
             lastQuestionNumber = 0;
         }
@@ -345,14 +355,16 @@
             return res.json();
         })
         .then(data => { 
-            // เช็กสถานะล่าสุดทันทีหลังจาก Backend ทำงานเสร็จ
             checkGameState(); 
         })
         .catch(err => console.error('Error controlling game:', err));
     }
 
     function triggerTimeout() {
-        if (countdownInterval) clearInterval(countdownInterval);
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
         isPaused = false;
         timeLeft = 0;
         document.getElementById('timer-display').innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
@@ -381,7 +393,6 @@
             if (data.is_started) {
                 document.getElementById('btn-start').style.display = 'none';
                 
-                // ตรวจสอบสถานะเพื่อเปิด/ปิดปุ่มควบคุมให้สอดคล้องกัน
                 if (data.is_time_up || data.is_end) {
                     document.getElementById('btn-timeout').style.display = 'none';
                     document.getElementById('btn-next').style.display = data.is_end ? 'none' : 'block';
@@ -397,13 +408,16 @@
                 document.getElementById('btn-next').style.display = 'none';
                 timerControlGroup.style.display = 'none';
                 
-                if (countdownInterval) clearInterval(countdownInterval);
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
                 document.getElementById('timer-display').innerText = `⏳ ระบบยังไม่ได้เริ่มเกม`;
                 lastQuestionNumber = 0;
                 isPaused = false;
             }
 
-            // 🌟 แก้ไข: บังคับอัปเดตเวลาเฉพาะเมื่อเป็นข้อใหม่ที่ได้การรับรองจาก Server เท่านั้น
+            // 🌟 แก้ไข: บังคับเริ่มจับเวลาใหม่ เฉพาะเมื่อเลขข้อเปลี่ยนไปจากเดิม และเกมยังไม่หมดเวลา
             if (data.is_started && !data.is_time_up && !data.is_end) {
                 if (data.current_number !== lastQuestionNumber) {
                     lastQuestionNumber = data.current_number;
@@ -412,7 +426,10 @@
             }
 
             if (data.is_time_up || data.is_end) {
-                if (countdownInterval) clearInterval(countdownInterval);
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
                 document.getElementById('timer-display').innerText = data.is_end ? `🏁 จบการแข่งขันแล้ว` : `🔒 หมดเวลาส่งคำตอบแล้ว`;
             }
 
@@ -465,7 +482,6 @@
         tbody.innerHTML = html;
     }
 
-    // เริ่มระบบตรวจสอบสถานะตามรอบเวลาปกติ
     setInterval(checkGameState, 1000);
     window.onload = checkGameState;
 </script>

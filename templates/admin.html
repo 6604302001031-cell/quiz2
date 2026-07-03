@@ -73,8 +73,8 @@
         <button class="close-modal-btn" onclick="closeScoreModal()">&times;</button>
         <h3 style="margin-top: 0;">🏆 ตารางคะแนนรวมทีม</h3>
         <table class="score-table">
-            <thead><tr><th>อันดับ</th><th>ชื่อทีม</th><th>คะแนน</th></tr></thead>
-            <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนน</td></tr></tbody>
+            <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
+            <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
         </table>
         <button onclick="closeScoreModal()" class="btn btn-blue" style="margin-top: 20px; margin-bottom: 0;">ปิด</button>
     </div>
@@ -87,6 +87,7 @@
     let stateCheckInterval = null;
     let isPaused = false;
     let isActionInProgress = false;
+    let activeScores = {}; // ตัวแปรเก็บคะแนนล่าสุดของระบบไว้ที่หน้าจอแอดมิน ป้องกันการอ่านค่าไม่ทัน
 
     function updateTimerDisplay() {
         const timerDisplay = document.getElementById('timer-display');
@@ -136,7 +137,10 @@
         updateTimerDisplay();
     }
 
-    function openScoreModal() { document.getElementById('score-modal').style.display = 'flex'; }
+    function openScoreModal() { 
+        updateScoreBoard(activeScores);
+        document.getElementById('score-modal').style.display = 'flex'; 
+    }
     function closeScoreModal() { document.getElementById('score-modal').style.display = 'none'; }
     function closeScoreModalOutside(e) { if (e.target.id === 'score-modal') closeScoreModal(); }
 
@@ -152,6 +156,11 @@
         const statusText = document.getElementById('game-status-text');
         const questionInfo = document.getElementById('question-info');
         const timerControlGroup = document.getElementById('timer-control-group');
+
+        // บันทึกคะแนนเข้าหน่วยความจำฝั่ง Client
+        if (data.school_scores) {
+            activeScores = data.school_scores;
+        }
 
         if (data.is_started) {
             document.getElementById('btn-start').style.display = 'none';
@@ -199,8 +208,6 @@
             statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
             questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
         }
-
-        if (data.school_scores) updateScoreBoard(data.school_scores);
     }
 
     function controlGame(url) {
@@ -214,7 +221,7 @@
             if (resData.status === "success" && resData.state) {
                 renderUI(resData.state);
             }
-            setTimeout(() => { isActionInProgress = false; toggleButtonsState(false); }, 300);
+            setTimeout(() => { isActionInProgress = false; toggleButtonsState(false); }, 400);
         })
         .catch(err => {
             console.error(err);
@@ -238,7 +245,7 @@
             return;
         }
         let arr = Object.keys(schoolScores).map(k => ({ name: k, score: schoolScores[k] })).sort((a,b) => b.score - a.score);
-        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td>${item.score} คะแนน</td></tr>`).join('');
+        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td><span style="color:#2196f3; font-weight:bold;">${item.score} คะแนน</span></td></tr>`).join('');
     }
 
     stateCheckInterval = setInterval(checkGameState, 2000);

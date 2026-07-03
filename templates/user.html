@@ -85,7 +85,7 @@
             padding: 18px;
             border: 2px solid #ced4da;
             border-radius: 8px;
-            font-size: 24px;
+            font-size: 20px;
             text-align: center;
             box-sizing: border-box;
             transition: border-color 0.2s;
@@ -148,7 +148,8 @@
 <div class="player-container">
     <div class="player-header-bar">
         <div class="player-info">
-            👤 ผู้เล่น: <span>{{ session.name }}</span>
+            👤 ผู้เล่น: <span>{{ session.name }}</span><br>
+            <small id="team-name-display" style="color: #e91e63; display: none; font-size: 14px; margin-top: 5px;"></small>
         </div>
         <div class="header-actions">
             <div class="score-badge">🏆 คะแนน: <span id="player-score">0</span></div>
@@ -156,7 +157,17 @@
         </div>
     </div>
 
-    <div id="waiting-screen" class="waiting-box">
+    <div id="setup-screen" class="waiting-box" style="display: none;">
+        <div style="font-size: 50px; margin-bottom: 15px;">🏫</div>
+        <h2 style="margin-top: 0;">ตั้งชื่อทีม / โรงเรียน</h2>
+        <p style="color: #6c757d; font-size: 16px; margin-bottom: 20px;">กรุณาระบุชื่อโรงเรียนหรือสังกัดของคุณ<br>เพื่อใช้ในการบันทึกคะแนนรวม</p>
+        <div class="input-group">
+            <input type="text" id="team-input" placeholder="พิมพ์ชื่อโรงเรียนที่นี่..." autocomplete="off">
+        </div>
+        <button onclick="saveTeamName()" class="btn btn-blue">บันทึกชื่อทีม</button>
+    </div>
+
+    <div id="waiting-screen" class="waiting-box" style="display: none;">
         <div class="loader">⏳</div>
         <h2>กรุณารอสักครู่...</h2>
         <p style="color: #6c757d; font-size: 16px;">
@@ -185,9 +196,58 @@
     const playerName = "{{ session.name }}";
 
     let currentQuestionNumber = 0;
-    let hasSubmittedThisQuestion = false; // 🌟 เพิ่มตัวแปรเช็กสถานะการส่งรายข้อ
+    let hasSubmittedThisQuestion = false;
+    
+    // 🌟 ดึงชื่อทีมที่เคยบันทึกไว้ในเบราว์เซอร์
+    let teamName = localStorage.getItem('quiz_team_name');
+    let gamePollingInterval = null;
 
-    // 🌟 ดึงคะแนนล่าสุดของตนเอง
+    // 🌟 ระบบตรวจสอบสถานะตอนเปิดหน้าเว็บ
+    function initPlayer() {
+        if (!teamName) {
+            // ถ้ายังไม่มีชื่อทีม โชว์หน้ากรอกชื่อ บล็อกหน้าอื่นๆ
+            document.getElementById('setup-screen').style.display = 'block';
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('quiz-screen').style.display = 'none';
+            
+            // หยุดดึงข้อมูลเซิร์ฟเวอร์ชั่วคราวเพื่อประหยัดทรัพยากร
+            if (gamePollingInterval) clearInterval(gamePollingInterval);
+        } else {
+            // ถ้ามีชื่อทีมแล้ว ซ่อนหน้ากรอกชื่อ โชว์ชื่อมุมซ้ายบน และรันระบบเกม
+            document.getElementById('setup-screen').style.display = 'none';
+            
+            const teamDisplay = document.getElementById('team-name-display');
+            teamDisplay.style.display = 'inline-block';
+            teamDisplay.innerText = `🏫 ทีม: ${teamName}`;
+            
+            checkGameState();
+            fetchMyScore();
+            
+            // สั่งดึงข้อมูลทุก 1 วินาที
+            if (!gamePollingInterval) {
+                gamePollingInterval = setInterval(checkGameState, 1000);
+            }
+        }
+    }
+
+    // 🌟 ฟังก์ชันบันทึกชื่อทีม
+    function saveTeamName() {
+        const inputVal = document.getElementById('team-input').value.trim();
+        if (inputVal.length < 2) {
+            alert('กรุณากรอกชื่อโรงเรียนหรือชื่อทีมอย่างน้อย 2 ตัวอักษรครับ');
+            return;
+        }
+        teamName = inputVal;
+        localStorage.setItem('quiz_team_name', teamName); // บันทึกลงเครื่องผู้เล่น
+        initPlayer(); // โหลดระบบเกม
+    }
+
+    // กด Enter ในช่องกรอกชื่อเพื่อบันทึก
+    document.getElementById('team-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') saveTeamName();
+    });
+
+    // ดึงคะแนนล่าสุดของตนเอง
     function fetchMyScore() {
         fetch('/api/my-score')
         .then(res => res.json())
@@ -199,8 +259,10 @@
         .catch(err => console.error('Error fetching score:', err));
     }
 
-    // 🔄 ตรวจสอบสถานะของเกม (Real-time Sync)
+    // ตรวจสอบสถานะของเกม (Real-time Sync)
     function checkGameState() {
+        if (!teamName) return; // ถ้ายงไม่มีชื่อทีม ไม่ต้องดึงข้อมูล
+
         fetch('/api/state')
         .then(res => res.json())
         .then(data => {
@@ -231,7 +293,7 @@
             // ตรวจสอบว่ามีการเปลี่ยนข้อคำถามใหม่หรือไม่
             if (data.current_number !== currentQuestionNumber) {
                 currentQuestionNumber = data.current_number;
-                hasSubmittedThisQuestion = false; // รีเซ็ตสถานะการส่งข้อใหม่
+                hasSubmittedThisQuestion = false; 
                 
                 answerInput.value = ''; 
                 answerInput.disabled = false;
@@ -239,7 +301,6 @@
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';
                 resultMsg.innerText = '';
                 
-                // ดึงคะแนนอัปเดตตอนเริ่มข้อใหม่ เผื่อแอดมินประมวลผลข้อที่ผ่านมาเสร็จแล้ว
                 fetchMyScore(); 
                 
                 setTimeout(() => answerInput.focus(), 100);
@@ -250,7 +311,7 @@
                 document.getElementById('question-number').innerText = '🏁 สิ้นสุดการแข่งขัน';
                 document.getElementById('answer-form').style.display = 'none';
                 resultMsg.innerText = '';
-                fetchMyScore(); // ดึงคะแนนสรุปสุดท้าย
+                fetchMyScore(); 
             } else {
                 document.getElementById('question-number').innerText = `ส่งคำตอบข้อที่ ${data.current_number}`;
                 document.getElementById('answer-form').style.display = 'block';
@@ -272,7 +333,7 @@
         .catch(err => console.error('Error fetching game state:', err));
     }
 
-    // 📤 ฟังก์ชันส่งคำตอบไปยัง Backend
+    // ฟังก์ชันส่งคำตอบไปยัง Backend
     function submitAnswer(event) {
         event.preventDefault();
         
@@ -290,7 +351,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                school: playerName,   
+                school: teamName,  // 🌟 ส่งชื่อทีมไปให้ Backend แทนชื่อจริง
                 player_id: playerId,  
                 answer: answerText
             })
@@ -298,7 +359,7 @@
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                hasSubmittedThisQuestion = true; // ล็อกว่าข้อนี้ส่งสำเร็จแล้ว
+                hasSubmittedThisQuestion = true;
                 resultMsg.innerHTML = '<span style="color: #4caf50;">✅ ส่งคำตอบเรียบร้อย!</span>';
                 submitBtn.innerText = 'ส่งคำตอบสำเร็จแล้ว';
                 answerInput.disabled = true;
@@ -317,13 +378,8 @@
         });
     }
 
-    // ⏱️ เช็กสถานะเกมทุกๆ 1 วินาที (เอา fetchMyScore ออกจากลูปนี้เพื่อลดภาระเซิร์ฟเวอร์)
-    setInterval(checkGameState, 1000);
-    
-    window.onload = () => {
-        checkGameState();
-        fetchMyScore();
-    };
+    // รันฟังก์ชันเมื่อเปิดหน้าเว็บ
+    window.onload = initPlayer;
 </script>
 
 </body>

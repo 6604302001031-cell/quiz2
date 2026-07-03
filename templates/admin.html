@@ -286,8 +286,6 @@
         }
         if (timeLeft <= 0) {
             clearInterval(countdownInterval);
-            // 🌟 แก้ไข: ไม่เรียกใช้ triggerTimeout() อัตโนมัติที่นี่ เพื่อป้องกันการยิงซ้ำซ้อน 
-            // ให้ฝั่ง Backend หรือปุ่มแอดมินเป็นคนจัดการสถานะโดยตรงอย่างปลอดภัย
             const timerDisplay = document.getElementById('timer-display');
             timerDisplay.innerText = `🔒 หมดเวลาส่งคำตอบแล้ว (รอแอดมินกดสรุป)`;
         }
@@ -333,8 +331,8 @@
         }
     }
 
+    // 🌟 แก้ไข: จัดการปุ่มควบคุมอย่างปลอดภัย ไม่ให้ตัวแปรฝั่งหน้าจอรวนไปแทรกแซงเลขข้อหลังกดปุ่มส่งงาน
     function controlGame(url) {
-        // ถ้าเป็นการกดเริ่มเกมใหม่ หรือรีเซ็ต ให้ล้างการทำงานของเวลาก่อนหน้าทิ้งทันที
         if (url.includes('start') || url.includes('reset')) {
             if (countdownInterval) clearInterval(countdownInterval);
             timeLeft = 120;
@@ -346,7 +344,10 @@
             if (!res.ok) throw new Error('Network response was not ok');
             return res.json();
         })
-        .then(data => { checkGameState(); })
+        .then(data => { 
+            // เช็กสถานะล่าสุดทันทีหลังจาก Backend ทำงานเสร็จ
+            checkGameState(); 
+        })
         .catch(err => console.error('Error controlling game:', err));
     }
 
@@ -402,7 +403,7 @@
                 isPaused = false;
             }
 
-            // จัดการเริ่มเวลานับถอยหลังเมื่อขึ้นข้อใหม่จริง ๆ เท่านั้น
+            // 🌟 แก้ไข: บังคับอัปเดตเวลาเฉพาะเมื่อเป็นข้อใหม่ที่ได้การรับรองจาก Server เท่านั้น
             if (data.is_started && !data.is_time_up && !data.is_end) {
                 if (data.current_number !== lastQuestionNumber) {
                     lastQuestionNumber = data.current_number;
@@ -437,7 +438,6 @@
         })
         .catch(err => {
             console.error('Error fetching state:', err);
-            document.getElementById('game-status-text').innerHTML = '<span class="status-dot dot-red"></span> เซิร์ฟเวอร์ขัดข้อง (Backend Error)';
         });
     }
 
@@ -465,6 +465,7 @@
         tbody.innerHTML = html;
     }
 
+    // เริ่มระบบตรวจสอบสถานะตามรอบเวลาปกติ
     setInterval(checkGameState, 1000);
     window.onload = checkGameState;
 </script>

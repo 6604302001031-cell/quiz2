@@ -112,6 +112,11 @@
             margin-bottom: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
+        .btn:disabled {
+            background-color: #bdc3c7 !important;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
         .btn-orange { background-color: #ff9800; color: white; }
         .btn-orange:hover { background-color: #e68a00; }
         .btn-blue { background-color: #2196f3; color: white; }
@@ -225,7 +230,7 @@
     <button onclick="openScoreModal()" class="btn btn-purple">📊 กดดูคะแนนทีม (View Scores)</button>
     
     <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
-    <button onclick="controlGame('/api/reset')" class="btn btn-red-outline">🔄 รีเซ็ตระบบเกมทั้งหมด (Reset)</button>
+    <button onclick="controlGame('/api/reset')" class="btn btn-red-outline" id="btn-reset">🔄 รีเซ็ตระบบเกมทั้งหมด (Reset)</button>
 </div>
 
 <div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
@@ -254,7 +259,9 @@
     let lastQuestionNumber = 0;
     let timeLeft = 120;
     let countdownInterval = null;
+    let stateCheckInterval = null;
     let isPaused = false; 
+    let isActionInProgress = false; // บล็อกการกดปุ่มซ้ำซ้อนป้องกัน Race Condition
 
     function updateTimerDisplay() {
         const timerDisplay = document.getElementById('timer-display');
@@ -337,8 +344,22 @@
         }
     }
 
-    // 🌟 แก้ไขจุดกระโดดข้ามข้อ: ล้างลูปเวลาเดิมทันทีที่แอดมินกดสั่งงาน ป้องกันการยิงคำสั่งซ้อน
+    function toggleButtonsState(disabled) {
+        const buttons = ['btn-start', 'btn-pause', 'btn-resume', 'btn-timeout', 'btn-next', 'btn-reset'];
+        buttons.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = disabled;
+        });
+    }
+
+    // 🌟 ปรับปรุงการ Control เกม: หยุด Polling ชั่วคราวก่อนยิงคำสั่ง ป้องกันหน้าจอเด้งกลับ
     function controlGame(url) {
+        if (isActionInProgress) return;
+        isActionInProgress = true;
+        toggleButtonsState(true);
+
+        // หยุดตรวจสอบสถานะและเวลาชั่วคราวทันทีขณะรอดำเนินการ
+        if (stateCheckInterval) clearInterval(stateCheckInterval);
         if (countdownInterval) {
             clearInterval(countdownInterval);
             countdownInterval = null;
@@ -355,12 +376,28 @@
             return res.json();
         })
         .then(data => { 
-            checkGameState(); 
+            // รอดีเลย์เล็กน้อยเพื่อให้ฝั่ง Backend เคลียร์ State สมบูรณ์ แล้วค่อยดึงสถานะใหม่
+            setTimeout(() => {
+                isActionInProgress = false;
+                toggleButtonsState(false);
+                checkGameState();
+                stateCheckInterval = setInterval(checkGameState, 1000); // เริ่ม Polling ใหม่
+            }, 400);
         })
-        .catch(err => console.error('Error controlling game:', err));
+        .catch(err => {
+            console.error('Error controlling game:', err);
+            isActionInProgress = false;
+            toggleButtonsState(false);
+            stateCheckInterval = setInterval(checkGameState, 1000);
+        });
     }
 
     function triggerTimeout() {
+        if (isActionInProgress) return;
+        isActionInProgress = true;
+        toggleButtonsState(true);
+
+        if (stateCheckInterval) clearInterval(stateCheckInterval);
         if (countdownInterval) {
             clearInterval(countdownInterval);
             countdownInterval = null;
@@ -368,16 +405,31 @@
         isPaused = false;
         timeLeft = 0;
         document.getElementById('timer-display').innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
+
         fetch('/api/timeout', { method: 'POST' })
         .then(res => {
             if (!res.ok) throw new Error('Network response was not ok');
             return res.json();
         })
-        .then(data => { checkGameState(); })
-        .catch(err => console.error('Error triggering timeout:', err));
+        .then(data => {
+            setTimeout(() => {
+                isActionInProgress = false;
+                toggleButtonsState(false);
+                checkGameState();
+                stateCheckInterval = setInterval(checkGameState, 1000);
+            }, 400);
+        })
+        .catch(err => {
+            console.error('Error triggering timeout:', err);
+            isActionInProgress = false;
+            toggleButtonsState(false);
+            stateCheckInterval = setInterval(checkGameState, 1000);
+        });
     }
 
     function checkGameState() {
+        if (isActionInProgress) return; // ถ้ากำลังกดปุ่มอยู่ ห้ามดึงสถานะมาทับซ้อน
+
         fetch('/api/state')
         .then(res => {
             if (!res.ok) throw new Error('Server Error');
@@ -417,7 +469,7 @@
                 isPaused = false;
             }
 
-            // 🌟 แก้ไข: บังคับเริ่มจับเวลาใหม่ เฉพาะเมื่อเลขข้อเปลี่ยนไปจากเดิม และเกมยังไม่หมดเวลา
+            // เริ่มนับเวลาใหม่เฉพาะเมื่อตัวเลขข้อขยับเพิ่มขึ้นจริงจากการยืนยันของ Server
             if (data.is_started && !data.is_time_up && !data.is_end) {
                 if (data.current_number !== lastQuestionNumber) {
                     lastQuestionNumber = data.current_number;
@@ -482,7 +534,8 @@
         tbody.innerHTML = html;
     }
 
-    setInterval(checkGameState, 1000);
+    // กำหนดลูปเริ่มต้นอย่างปลอดภัย
+    stateCheckInterval = setInterval(checkGameState, 1000);
     window.onload = checkGameState;
 </script>
 

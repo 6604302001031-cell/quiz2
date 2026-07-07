@@ -15,12 +15,12 @@ except ImportError:
     docx = None
     print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง python-docx (รันคำสั่ง: pip install python-docx)")
 
-# 📌 ไลบรารีสำหรับอ่านไฟล์ PDF (เพิ่มเข้ามาใหม่)
+# 📌 ไลบรารีสำหรับอ่านไฟล์ PDF (เปลี่ยนมาใช้ PyMuPDF เพราะอ่านภาษาไทยได้ดีกว่า)
 try:
-    import PyPDF2
+    import fitz  # PyMuPDF
 except ImportError:
-    PyPDF2 = None
-    print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง PyPDF2 (รันคำสั่ง: pip install PyPDF2)")
+    fitz = None
+    print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง PyMuPDF (รันคำสั่ง: pip install PyMuPDF)")
 
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
@@ -103,12 +103,13 @@ def parse_text_to_questions(text):
         line = line.strip()
         if not line: continue
         
-        q_match = re.match(r'^(?:q|question|โจทย์|คำถาม)\s*[\.:]\s*(.*)', line, re.IGNORECASE)
+        # ปรับ Regex ให้ยืดหยุ่นขึ้น (มีหรือไม่มีเครื่องหมาย : ก็ได้ เผื่อ PDF อ่านเพี้ยน)
+        q_match = re.match(r'^(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if q_match:
             current_q = q_match.group(1).strip()
             continue
             
-        a_match = re.match(r'^(?:a|answer|เฉลย|คำตอบ)\s*[\.:]\s*(.*)', line, re.IGNORECASE)
+        a_match = re.match(r'^(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if a_match and current_q:
             parsed_questions.append({"q": current_q, "a": a_match.group(1).strip()})
             current_q = None 
@@ -169,7 +170,6 @@ def google_login():
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
 
-# 📌 อัปเดต API สำหรับรับนามสกุล .json, .csv, .docx, .md, และ .pdf
 @app.route('/api/upload-questions', methods=['POST'])
 def upload_questions():
     if session.get('role') != 'admin':
@@ -207,24 +207,30 @@ def upload_questions():
             text = "\n".join([para.text for para in doc.paragraphs])
             new_qs = parse_text_to_questions(text)
             
-        # 📌 เพิ่มเงื่อนไขการอ่านไฟล์ PDF
+        # 📌 อัปเดตการอ่านไฟล์ PDF ด้วย PyMuPDF (fitz)
         elif filename.endswith('.pdf'):
-            if PyPDF2 is None:
-                return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ PDF กรุณาติดตั้ง PyPDF2"}), 500
+            if fitz is None:
+                return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ PDF กรุณาติดตั้ง PyMuPDF"}), 500
             
-            pdf_reader = PyPDF2.PdfReader(file)
+            # อ่านไฟล์ PDF จากหน่วยความจำโดยตรง
+            file_bytes = file.read()
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
             text = ""
-            for page in pdf_reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    text += extracted + "\n"
+            for page in doc:
+                text += page.get_text() + "\n"
+                
+            # เพิ่ม print เพื่อแสดงผลในหน้าจอ Console ให้ง่ายต่อการ Debug
+            print("=== ข้อความที่สกัดได้จาก PDF ===")
+            print(text)
+            print("==================================")
+            
             new_qs = parse_text_to_questions(text)
             
         else:
             return jsonify({"status": "error", "message": "รองรับเฉพาะ .json, .csv, .docx, .md, .pdf เท่านั้น"}), 400
 
         if len(new_qs) == 0:
-            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง"}), 400
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง (ตรวจสอบรูปแบบ โจทย์: / เฉลย:)"}), 400
 
         global questions
         questions = new_qs

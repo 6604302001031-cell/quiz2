@@ -1,9 +1,19 @@
 import os
 import json
-import time  
+import time
+import csv
+import io
+import re
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+
+# 📌 ไลบรารีสำหรับอ่านไฟล์ Word
+try:
+    import docx
+except ImportError:
+    docx = None
+    print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง python-docx (รันคำสั่ง: pip install python-docx)")
 
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
@@ -12,18 +22,17 @@ GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleuse
 
 active_users_memory = {}
 
-# 📌 เพิ่มตัวแปรสำหรับเซฟโจทย์
 QUESTIONS_FILE = "/tmp/questions.json"
 DB_FILE = "/tmp/game_database.json"
 
-# โจทย์เริ่มต้น (กรณีที่ยังไม่มีการอัปโหลด)
+# โจทย์เริ่มต้น
 questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10"},
     {"q": "1 + 1 เท่ากับเท่าไร?", "a": "2"},
     {"q": "7 + 7 เท่ากับเท่าไร?", "a": "14"}
 ]
 
-# 📌 ฟังก์ชันโหลดโจทย์ที่แอดมินเคยอัปโหลดไว้
+# โหลดโจทย์ที่เคยอัปโหลดไว้
 if os.path.exists(QUESTIONS_FILE):
     try:
         with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
@@ -32,7 +41,6 @@ if os.path.exists(QUESTIONS_FILE):
                 questions = loaded_questions
     except Exception as e:
         print("Error loading questions file:", e)
-
 
 DEFAULT_STATE = {
     "is_started": False,
@@ -78,6 +86,27 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ (Word/Markdown) เป็นโจทย์และเฉลย
+def parse_text_to_questions(text):
+    parsed_questions = []
+    lines = text.split('\n')
+    current_q = None
+    
+    for line in lines:
+        line = line.strip()
+        if not line: continue
+        
+        q_match = re.match(r'^(?:q|question|โจทย์|คำถาม)\s*[\.:]\s*(.*)', line, re.IGNORECASE)
+        if q_match:
+            current_q = q_match.group(1).strip()
+            continue
+            
+        a_match = re.match(r'^(?:a|answer|เฉลย|คำตอบ)\s*[\.:]\s*(.*)', line, re.IGNORECASE)
+        if a_match and current_q:
+            parsed_questions.append({"q": current_q, "a": a_match.group(1).strip()})
+            current_q = None 
+            
+    return parsed_questions
 
 # ==========================================
 # 🏠 เส้นทางหลัก & ระบบล็อกอิน
@@ -133,7 +162,7 @@ def google_login():
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
 
-# 📌 [ใหม่] API สำหรับอัปโหลดโจทย์
+# 📌 อัปเดต API สำหรับรับนามสกุล .json, .csv, .docx, .md
 @app.route('/api/upload-questions', methods=['POST'])
 def upload_questions():
     if session.get('role') != 'admin':
@@ -143,22 +172,49 @@ def upload_questions():
     if not file or file.filename == '':
         return jsonify({"status": "error", "message": "ไม่ได้เลือกไฟล์"}), 400
         
+    filename = file.filename.lower()
+    new_qs = []
+
     try:
-        new_qs = json.load(file)
-        if not isinstance(new_qs, list) or len(new_qs) == 0 or "q" not in new_qs[0]:
-            return jsonify({"status": "error", "message": "รูปแบบไฟล์ไม่ถูกต้อง โครงสร้างต้องเป็น List of dicts"}), 400
+        if filename.endswith('.json'):
+            new_qs = json.load(file)
+            if not isinstance(new_qs, list) or len(new_qs) == 0 or "q" not in new_qs[0]:
+                return jsonify({"status": "error", "message": "รูปแบบ JSON ไม่ถูกต้อง"}), 400
+                
+        elif filename.endswith('.csv'):
+            stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
+            for row in csv.reader(stream):
+                if len(row) >= 2:
+                    q, a = row[0].strip(), row[1].strip()
+                    if q.lower() in ['q', 'โจทย์'] and a.lower() in ['a', 'เฉลย']: continue
+                    if q and a: new_qs.append({"q": q, "a": a})
+                        
+        elif filename.endswith('.md'):
+            text = file.stream.read().decode("utf-8")
+            new_qs = parse_text_to_questions(text)
             
+        elif filename.endswith('.docx'):
+            if docx is None:
+                return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ Word กรุณาติดตั้ง python-docx"}), 500
+            doc = docx.Document(file)
+            text = "\n".join([para.text for para in doc.paragraphs])
+            new_qs = parse_text_to_questions(text)
+            
+        else:
+            return jsonify({"status": "error", "message": "รองรับเฉพาะ .json, .csv, .docx, .md เท่านั้น"}), 400
+
+        if len(new_qs) == 0:
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง"}), 400
+
         global questions
         questions = new_qs
         
-        # บันทึกลงไฟล์เพื่อใช้ครั้งต่อไป
         with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(questions, f, ensure_ascii=False, indent=4)
             
-        # รีเซ็ตเกมเพื่อเริ่มชุดโจทย์ใหม่
         save_db(DEFAULT_STATE)
-        
         return jsonify({"status": "success", "message": f"อัปโหลดสำเร็จ {len(questions)} ข้อ และรีเซ็ตระบบแล้ว"})
+        
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
@@ -196,7 +252,7 @@ def get_state():
         
     if db["current_index"] >= len(questions):
         db["is_end"] = True
-        db["current_index"] = len(questions) - 1
+        db["current_index"] = max(0, len(questions) - 1)
         save_db(db)
 
     current_q = ""
@@ -204,7 +260,7 @@ def get_state():
     correct_count = 0
     incorrect_count = 0
 
-    if db["is_started"] and not db["is_end"]:
+    if db["is_started"] and not db["is_end"] and len(questions) > 0:
         current_idx = db["current_index"]
         current_q = questions[current_idx]["q"]
         correct_ans = questions[current_idx]["a"]

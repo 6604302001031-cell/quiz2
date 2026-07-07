@@ -25,6 +25,25 @@
         .dot-green { background-color: #4caf50; }
         .dot-red { background-color: #f44336; }
         .dot-yellow { background-color: #f1c40f; }
+
+        /* 📌 เพิ่มใหม่: สไตล์สำหรับกล่องแสดงโจทย์โดยเฉพาะ */
+        .question-display {
+            font-size: 16px;
+            color: #212529;
+            line-height: 1.8;
+            white-space: pre-wrap; /* ทำให้เว้นบรรทัดตามไฟล์ต้นฉบับ */
+            word-break: break-word;
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ced4da;
+            width: 100%;
+            box-sizing: border-box;
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 10px;
+            font-weight: normal;
+        }
         
         /* 📌 ส่วนตั้งค่าเวลา */
         .timer-setting { margin-top: 15px; text-align: center; font-size: 15px; font-weight: bold; color: #555; }
@@ -82,10 +101,19 @@
         #fullscreen-target:fullscreen .hide-on-fullscreen { display: none !important; }
         #fullscreen-target:fullscreen .show-on-fullscreen { display: block !important; }
         
-        #fullscreen-target:fullscreen #question-info {
-            font-size: 46px !important; color: #111111 !important; text-align: center !important;
-            line-height: 1.6 !important; margin: auto 0 20px 0 !important; max-width: 90% !important;
+        /* 📌 เพิ่มใหม่: ปรับหน้าตาตอน Fullscreen ให้ตัวใหญ่และอ่านง่าย */
+        #fullscreen-target:fullscreen .question-display {
+            font-size: 42px !important;
+            max-height: 80vh !important;
+            border: none !important;
+            background: transparent !important;
+            padding: 20px !important;
+            line-height: 1.6 !important;
+            text-align: left !important;
+            margin: auto 0 20px 0 !important; 
+            max-width: 90% !important;
         }
+
         #fullscreen-target:fullscreen .timer-box { font-size: 65px !important; padding: 25px 60px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; margin-bottom: 20px !important; }
         #fullscreen-target:fullscreen .answer-box { font-size: 45px !important; padding: 25px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; }
         #fullscreen-target:fullscreen .stats-box { width: 80% !important; max-width: 750px !important; margin-top: 25px !important; margin-bottom: auto !important; gap: 30px !important; }
@@ -108,9 +136,12 @@
 
         <div class="status-line hide-on-fullscreen"><strong>สถานะเกม:</strong>&nbsp;<span id="game-status-text">กำลังโหลด...</span></div>
         
-        <div class="status-line" style="display: flex; align-items: center; justify-content: flex-start;">
-            <div id="question-info" style="font-weight: bold; color: #495057;">โจทย์ปัจจุบัน: กำลังโหลด...</div>
-            <button class="edit-icon-btn hide-on-fullscreen" onclick="openEditModal()" title="อัปโหลด/แก้ไขโจทย์">✏️</button>
+        <div style="display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                <strong style="color: #495057;">📝 <span id="question-number-label">โจทย์ปัจจุบัน:</span></strong>
+                <button class="edit-icon-btn hide-on-fullscreen" onclick="openEditModal()" title="อัปโหลด/แก้ไขโจทย์">✏️</button>
+            </div>
+            <div id="question-info" class="question-display">กำลังโหลด...</div>
         </div>
 
         <div id="timer-display" class="timer-box">⏱️ เวลาที่เหลือ: 120 วินาที</div>
@@ -195,7 +226,6 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
-    // 📌 ระบบเปิด/ปิด Modal 
     function openEditModal() { document.getElementById('upload-modal').style.display = 'flex'; }
     function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
     function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
@@ -278,8 +308,6 @@
         } else {
             clearInterval(countdownInterval);
             countdownInterval = null;
-            // เมื่อเวลาในฝั่ง Client หมด ส่ง API บอกเซิร์ฟเวอร์ด้วย (ถ้าจำเป็น)
-            // controlGame('/api/timeout'); 
         }
     }
 
@@ -287,7 +315,6 @@
         if (countdownInterval) clearInterval(countdownInterval);
         
         if (resetTime) {
-            // 📌 ดึงค่าเวลาจากช่องที่แอดมินกรอก
             const customTime = parseInt(document.getElementById('custom-time-input').value);
             timeLeft = !isNaN(customTime) && customTime > 0 ? customTime : 120;
         }
@@ -327,7 +354,6 @@
         });
     }
 
-    // 📌 ยืนยันการรีเซ็ตระบบ
     function confirmReset() {
         if(confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลคะแนนและรีเซ็ตระบบเกมทั้งหมดใช่หรือไม่? (การกระทำนี้ย้อนกลับไม่ได้)")) {
             controlGame('/api/reset');
@@ -343,6 +369,7 @@
 
         const statusText = document.getElementById('game-status-text');
         const questionInfo = document.getElementById('question-info');
+        const questionLabel = document.getElementById('question-number-label'); // 📌 เพิ่มตัวแปรจัดการหัวข้อ
         const timerControlGroup = document.getElementById('timer-control-group');
         const answerBox = document.getElementById('answer-box');
         const answerText = document.getElementById('answer-text');
@@ -353,7 +380,6 @@
 
         if (data.is_started) {
             document.getElementById('btn-start').style.display = 'none';
-            // ซ่อนช่องตั้งเวลาเมื่อเกมเริ่มแล้ว
             timerSettingContainer.style.display = 'none'; 
             
             if (data.is_time_up || data.is_end) {
@@ -370,7 +396,7 @@
             document.getElementById('btn-timeout').style.display = 'none';
             document.getElementById('btn-next').style.display = 'none';
             timerControlGroup.style.display = 'none';
-            timerSettingContainer.style.display = 'block'; // แสดงช่องตั้งเวลาเมื่อยังไม่เริ่ม
+            timerSettingContainer.style.display = 'block'; 
             
             if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
             document.getElementById('timer-display').innerText = `⏳ ระบบยังไม่ได้เริ่มเกม`;
@@ -401,18 +427,31 @@
             statsBox.style.display = 'none';
         }
 
+        // 📌 แก้ไขใหม่: แยกการจัดการกล่องโจทย์ให้อ่านง่ายและสวยงาม
         if (!data.is_started) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> ยังไม่เริ่มเกม';
-            questionInfo.innerText = 'โจทย์ปัจจุบัน: รอแอดมินกดเริ่มเกม';
+            questionLabel.innerText = 'โจทย์ปัจจุบัน:';
+            questionInfo.innerText = 'รอแอดมินกดเริ่มเกม';
+            questionInfo.style.textAlign = 'center';
+            questionInfo.style.fontWeight = 'bold';
         } else if (data.is_end) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
+            questionLabel.innerText = 'โจทย์ปัจจุบัน:';
             questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
+            questionInfo.style.textAlign = 'center';
+            questionInfo.style.fontWeight = 'bold';
         } else if (data.is_time_up) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
-            questionInfo.innerText = `ข้อที่ ${data.current_number}: ${data.question}`;
+            questionLabel.innerText = `โจทย์ข้อที่ ${data.current_number}:`;
+            questionInfo.innerText = data.question;
+            questionInfo.style.textAlign = 'left';
+            questionInfo.style.fontWeight = 'normal';
         } else {
             statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
-            questionInfo.innerText = `ข้อที่ ${data.current_number}: ${data.question}`;
+            questionLabel.innerText = `โจทย์ข้อที่ ${data.current_number}:`;
+            questionInfo.innerText = data.question;
+            questionInfo.style.textAlign = 'left';
+            questionInfo.style.fontWeight = 'normal';
         }
     }
 
@@ -421,7 +460,6 @@
         isActionInProgress = true;
         toggleButtonsState(true);
 
-        // ถ้าเป็นการ Start หรือ Next ให้ส่งค่าเวลาใหม่ไปด้วย (ออปชันเสริมสำหรับ Backend)
         const requestData = {};
         if (url === '/api/start' || url === '/api/next') {
             requestData.time_limit = parseInt(document.getElementById('custom-time-input').value) || 120;

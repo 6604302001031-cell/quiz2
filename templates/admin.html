@@ -145,6 +145,25 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
+    // 🔑 คลังเฉลยคำตอบประจำข้อ (ระบุไว้ตรงนี้ได้เลยครับ)
+    const gameAnswers = {
+        1: "10",
+        2: "2",
+        3: "14",
+        4: "4",
+        5: "18",
+        6: "13",
+        7: "12",
+        8: "8",
+        9: "14",
+        10: "16",
+        11: "6",
+        12: "9",
+        13: "20",
+        14: "24",
+        15: "30"
+    };
+
     function toggleFullscreen() {
         const elem = document.getElementById('fullscreen-target');
         if (!document.fullscreenElement) {
@@ -263,13 +282,13 @@
             document.getElementById('timer-display').innerText = data.is_end ? `🏁 จบการแข่งขันแล้ว` : `🔒 หมดเวลาส่งคำตอบแล้ว`;
         }
 
-        /* 🌟 เงื่อนไขการเปิด-ปิดการแสดงคำตอบเฉลย */
+        /* 🌟 ส่วนเงื่อนไขการดึงคำตอบเฉลยมาแสดง (ดึงจากตัวแปร gameAnswers ด้านบนตามหมายเลขข้อ) */
         if (data.is_started && (data.is_time_up || data.is_end)) {
-            // แสดงเฉลยคำตอบเมื่อหมดเวลา หรือจบเกมแล้ว (ระหว่างรอเปิดข้อถัดไป)
-            answerText.innerText = data.answer ? data.answer : 'ไม่มีข้อมูลเฉลยคำตอบในข้อนี้';
+            // ค้นหาคำตอบจากหมายเลขข้อปัจจุบัน
+            const currentAns = gameAnswers[data.current_number] || data.answer || 'ไม่มีข้อมูลเฉลย';
+            answerText.innerText = currentAns;
             answerBox.style.display = 'block';
         } else {
-            // ซ่อนเฉลยในเวลาที่กำลังแข่ง หรือยังไม่เริ่มเกม
             answerBox.style.display = 'none';
         }
 

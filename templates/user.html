@@ -116,6 +116,38 @@
             margin-bottom: 12px;
         }
         
+        /* 🌟 เพิ่ม CSS สำหรับ Math Toolbar */
+        .math-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .math-toolbar button {
+            background-color: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 16px;
+            cursor: pointer;
+            color: #495057;
+            transition: all 0.2s;
+        }
+        .math-toolbar button:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        .math-toolbar button:active {
+            background-color: #dee2e6;
+        }
+        /* 🌟 สิ้นสุด CSS Math Toolbar */
+
         .math-preview-box {
             background-color: #f8f9fa;
             border: 1px dashed #ced4da;
@@ -249,6 +281,19 @@
 
         <form id="answer-form" onsubmit="submitAnswer(event)">
             <span class="math-hint">💡 รองรับสมการคณิตศาสตร์ (พิมพ์ครอบด้วย $...$ เช่น $x^2 + y^2$)</span>
+            
+            <div class="math-toolbar">
+                <button type="button" onclick="insertMath('$$...$$')">$$...$$</button>
+                <button type="button" onclick="insertMath('\\frac{}{} ')">$\frac{a}{b}$</button>
+                <button type="button" onclick="insertMath('^{2} ')">$x^2$</button>
+                <button type="button" onclick="insertMath('^{} ')">$x^y$</button>
+                <button type="button" onclick="insertMath('\\sqrt{} ')">$\sqrt{x}$</button>
+                <button type="button" onclick="insertMath('\\pi ')">$\pi$</button>
+                <button type="button" onclick="insertMath('\\pm ')">$\pm$</button>
+                <button type="button" onclick="insertMath('\\times ')">$\times$</button>
+                <button type="button" onclick="insertMath('\\div ')">$\div$</button>
+                <button type="button" onclick="insertMath('\\neq ')">$\neq$</button>
+            </div>
             <div class="input-group">
                 <input type="text" id="answer-input" placeholder="พิมพ์คำตอบของคุณที่นี่..." required autocomplete="off" oninput="renderMathPreview()">
             </div>
@@ -273,6 +318,38 @@
     
     let teamName = localStorage.getItem('quiz_team_name');
     let gamePollingInterval = null;
+
+    // 🌟 เพิ่มฟังก์ชันสำหรับแทรกสัญลักษณ์คณิตศาสตร์จาก Toolbar
+    function insertMath(symbol) {
+        const input = document.getElementById('answer-input'); 
+        
+        // ถ้าช่องถูกล็อคอยู่ (ส่งคำตอบไปแล้วหรือหมดเวลา) ไม่ต้องทำอะไร
+        if (!input || input.disabled) return;
+
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        
+        // แทรกข้อความ LaTeX ลงไป
+        input.value = text.substring(0, start) + symbol + text.substring(end);
+        
+        // คำนวณตำแหน่งเคอร์เซอร์ใหม่
+        let cursorOffset = symbol.length;
+        if (symbol.includes('{}')) {
+            cursorOffset -= 2; // ถอยกลับไปอยู่ในปีกกาสุดท้าย
+        } else if (symbol.includes('}{')) {
+            cursorOffset -= 3; // ถอยกลับไปอยู่ในปีกกาแรกของเศษส่วน
+        } else if (symbol === '$$...$$') {
+            cursorOffset -= 3; // ถอยกลับไปอยู่ใน $$
+        }
+        
+        input.focus();
+        input.setSelectionRange(start + cursorOffset, start + cursorOffset);
+        
+        // อัปเดต Preview ทันที
+        renderMathPreview(); 
+    }
+    // 🌟 สิ้นสุดฟังก์ชันแทรกสัญลักษณ์คณิตศาสตร์
 
     // 📌 ฟังก์ชันดึงรายชื่อโรงเรียนจากเซิร์ฟเวอร์แบบ Dynamic Real-time
     function updateSchoolList() {

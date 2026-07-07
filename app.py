@@ -15,6 +15,13 @@ except ImportError:
     docx = None
     print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง python-docx (รันคำสั่ง: pip install python-docx)")
 
+# 📌 ไลบรารีสำหรับอ่านไฟล์ PDF (เพิ่มเข้ามาใหม่)
+try:
+    import PyPDF2
+except ImportError:
+    PyPDF2 = None
+    print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง PyPDF2 (รันคำสั่ง: pip install PyPDF2)")
+
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
@@ -86,7 +93,7 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ (Word/Markdown) เป็นโจทย์และเฉลย
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
@@ -150,7 +157,7 @@ def google_login():
             session['role'] = 'admin'
         else:
             session['role'] = 'user'
-        
+            
         session['email'] = email
         session['name'] = name
         return jsonify({"status": "success", "message": "ล็อกอินสำเร็จ"})
@@ -162,7 +169,7 @@ def google_login():
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
 
-# 📌 อัปเดต API สำหรับรับนามสกุล .json, .csv, .docx, .md
+# 📌 อัปเดต API สำหรับรับนามสกุล .json, .csv, .docx, .md, และ .pdf
 @app.route('/api/upload-questions', methods=['POST'])
 def upload_questions():
     if session.get('role') != 'admin':
@@ -200,8 +207,21 @@ def upload_questions():
             text = "\n".join([para.text for para in doc.paragraphs])
             new_qs = parse_text_to_questions(text)
             
+        # 📌 เพิ่มเงื่อนไขการอ่านไฟล์ PDF
+        elif filename.endswith('.pdf'):
+            if PyPDF2 is None:
+                return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ PDF กรุณาติดตั้ง PyPDF2"}), 500
+            
+            pdf_reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+            new_qs = parse_text_to_questions(text)
+            
         else:
-            return jsonify({"status": "error", "message": "รองรับเฉพาะ .json, .csv, .docx, .md เท่านั้น"}), 400
+            return jsonify({"status": "error", "message": "รองรับเฉพาะ .json, .csv, .docx, .md, .pdf เท่านั้น"}), 400
 
         if len(new_qs) == 0:
             return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง"}), 400

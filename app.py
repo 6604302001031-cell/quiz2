@@ -27,6 +27,10 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
+# 📸 [เพิ่มใหม่] กำหนดโฟลเดอร์สำหรับเก็บไฟล์รูปภาพที่อัปโหลดเข้ามาในระบบ
+UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
 active_users_memory = {}
@@ -34,10 +38,10 @@ active_users_memory = {}
 QUESTIONS_FILE = "/tmp/questions.json"
 DB_FILE = "/tmp/game_database.json"
 
-# โจทย์เริ่มต้น (ปรับเป็นโครงสร้าง image_url ตาม Frontend ของคุณ)
+# โจทย์เริ่มต้น (เพิ่มโครงสร้างรองรับ image_url)
 default_questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10", "image_url": ""},
-    {"q": "จากภาพตัวอย่าง คือสัญลักษณ์ของโปรแกรมใด?", "a": "flask", "image_url": "https://images.unsplash.com/photo-1515879218367-8466d910aaa4"},
+    {"q": "1 + 1 เท่ากับเท่าไร?", "a": "2", "image_url": ""},
     {"q": "7 + 7 เท่ากับเท่าไร?", "a": "14", "image_url": ""}
 ]
 questions = list(default_questions)
@@ -52,6 +56,7 @@ if os.path.exists(QUESTIONS_FILE):
     except Exception as e:
         print("Error loading questions file:", e)
 
+# 📌 ใช้ฟังก์ชันสร้าง State เริ่มต้นเพื่อป้องกันปัญหา Shallow Copy Reference Bug
 def get_default_state():
     return {
         "is_started": False,
@@ -98,14 +103,13 @@ def get_active_users_count():
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
 
-# 📌 [ปรับปรุง] เปลี่ยนโครงสร้างส่งออกชิ้นงานให้บันทึกเป็นคีย์ image_url
+# 📌 เพิ่มป้ายรองรับรูปภาพเผื่อมีในอนาคตสำหรับ Text Parser
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
     
     current_q = []
     current_a = []
-    current_img = ""
     state = None  
     
     for line in lines:
@@ -113,37 +117,30 @@ def parse_text_to_questions(text):
         if not line: 
             continue
         
-        md_img_match = re.search(r'!\[.*?\]\((.*?)\)', line)
-        if md_img_match:
-            current_img = md_img_match.group(1).strip()
-        
+        # ดักจับคำถาม: รองรับโครงสร้างตัวเลข "1. โจทย์" หรือ "ข้อ 1)" หรือคำว่า "โจทย์:"
         q_match = re.search(r'^\s*(?:ข้อ\s*)?(\d+)\s*[\.\)]\s*(.*)', line)
         q_keyword_match = re.search(r'^\s*(?:q|question|โจทย์|คำถาม)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
+        
+        # ดักจับคำตอบ: รองรับคำว่า "เฉลย:" "คำตอบ:" "ตอบ" หรือ "A:"
         a_match = re.search(r'^\s*(?:a|answer|เฉลย|คำตอบ|ตอบ)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
-        img_match = re.search(r'^\s*(?:img|image|image_url|รูป|รูปภาพ)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
         
         if q_match or q_keyword_match:
             if current_q and current_a:
                 parsed_questions.append({
                     "q": " ".join(current_q).strip(),
                     "a": " ".join(current_a).strip(),
-                    "image_url": current_img
+                    "image_url": ""
                 })
             state = 'q'
             matched_text = q_match.group(2).strip() if q_match else q_keyword_match.group(1).strip()
             current_q = [matched_text] if matched_text else []
             current_a = []
-            current_img = ""
             continue
             
         elif a_match:
             state = 'a'
             matched_text = a_match.group(1).strip()
             current_a = [matched_text] if matched_text else []
-            continue
-
-        elif img_match:
-            current_img = img_match.group(1).strip()
             continue
             
         if state == 'q':
@@ -155,14 +152,14 @@ def parse_text_to_questions(text):
         parsed_questions.append({
             "q": " ".join(current_q).strip(),
             "a": " ".join(current_a).strip(),
-            "image_url": current_img
+            "image_url": ""
         })
         
     return parsed_questions
 
 
 # ==========================================
-# 🏫 API รายชื่อโรงเรียน
+# 🏫 API สำหรับส่งรายชื่อโรงเรียนกลับไปที่หน้าเว็บ
 # ==========================================
 @app.route('/api/schools', methods=['GET', 'POST'])
 @app.route('/api/get-schools', methods=['GET', 'POST']) 
@@ -173,6 +170,7 @@ def get_schools():
         province = data.get('province', province)
         
     province = province.strip()
+    
     schools_database = {
         "ชุมพร": [
             "โรงเรียนศรียาภัย", "โรงเรียนสะอาดเผดิมวิทยา", "โรงเรียนสวนกุหลาบวิทยาลัย ชุมพร",
@@ -183,14 +181,16 @@ def get_schools():
             "โรงเรียนศึกษาสงเคราะห์สุราษฎร์ธานี", "โรงเรียนพุนพินพิทยาคม"
         ]
     }
+    
     school_list = schools_database.get(province, [
         f"โรงเรียนประจำจังหวัด{province}", f"โรงเรียนมัธยม{province}", f"โรงเรียนอนุบาล{province}"
     ])
+    
     return jsonify(school_list)
 
 
 # ==========================================
-# 🏠 เส้นทางหลัก & ล็อกอิน
+# 🏠 เส้นทางหลัก & ระบบล็อกอิน
 # ==========================================
 @app.route('/')
 def index():
@@ -207,7 +207,7 @@ def login_page():
 @app.route('/admin')
 def admin_dashboard():
     if session.get('role') != 'admin':
-        return "สิทธิ์การเข้าถึงถูกปฏิเสธ", 403
+        return "สิทธิ์การเข้าถึงถูกปฏิเสธ: หน้านี้สำหรับอาจารย์/ผู้ดูแลระบบเท่านั้น", 403
     return render_template('admin.html')
 
 @app.route('/logout')
@@ -236,11 +236,11 @@ def google_login():
         session['name'] = name
         return jsonify({"status": "success", "message": "ล็อกอินสำเร็จ"})
     except ValueError:
-        return jsonify({"status": "error", "message": "Token ไม่ถูกต้อง"}), 400
+        return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
 
 # ==========================================
-# 🎮 ระบบควบคุมเกม (API)
+# 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
 
 @app.route('/api/upload-questions', methods=['POST'])
@@ -253,8 +253,42 @@ def upload_questions():
         return jsonify({"status": "error", "message": "ไม่ได้เลือกไฟล์"}), 400
         
     filename = file.filename.lower()
-    new_qs = []
+    global questions
 
+    # 📸 [ส่วนปรับปรุงใหม่] รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ
+    if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        try:
+            # สร้างโฟลเดอร์ไว้เก็บรูปภาพในโปรเจกต์หากยังไม่มี
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            
+            # บันทึกรูปภาพลงโฟลเดอร์ static/uploads/
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(file_path)
+            
+            # สร้าง URL เพื่อให้ Frontend นำไปใช้เรนเดอร์แท็กอิมเมจ
+            local_image_url = f"/static/uploads/{file.filename}"
+            
+            # ทำการเพิ่มต่อท้าย (Append) ข้อใหม่ เพื่อให้โจทย์เก่าๆ ไม่หายไป
+            new_img_question = {
+                "q": f"คำถามจากรูปภาพ ({file.filename})",
+                "a": "กรุณาตั้งคำตอบระบบ",
+                "image_url": local_image_url
+            }
+            questions.append(new_img_question)
+            
+            # บันทึกความเปลี่ยนแปลงลงไฟล์ JSON หลัก
+            with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+                json.dump(questions, f, ensure_ascii=False, indent=4)
+                
+            return jsonify({
+                "status": "success", 
+                "message": f"อัปโหลดรูปภาพสำเร็จ! เพิ่มเข้าสู่ระบบเป็นโจทย์ข้อที่ {len(questions)} เรียบร้อยแล้ว"
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการบันทึกรูปภาพ: {str(e)}"}), 500
+
+    # 📄 ประมวลผลกลุ่มไฟล์เอกสารตัวหนังสือตามปกติ (.json, .csv, .docx, .pdf, .md)
+    new_qs = []
     try:
         if filename.endswith('.json'):
             new_qs = json.load(file)
@@ -266,9 +300,9 @@ def upload_questions():
             for row in csv.reader(stream):
                 if len(row) >= 2:
                     q, a = row[0].strip(), row[1].strip()
-                    image_url = row[2].strip() if len(row) > 2 else ""  # คอลัมน์ 3 คือรูปภาพ
-                    if q.lower() in ['q', 'โจทย์'] and a.lower() in ['a', 'เฉลย']: continue
-                    if q and a: new_qs.append({"q": q, "a": a, "image_url": image_url})
+                    img = row[2].strip() if len(row) > 2 else ""
+                    if q.lower() in ['q', 'โจทย์', 'คำถาม'] and a.lower() in ['a', 'เฉลย', 'คำตอบ']: continue
+                    if q and a: new_qs.append({"q": q, "a": a, "image_url": img})
                         
         elif filename.endswith('.md'):
             text = file.stream.read().decode("utf-8")
@@ -276,14 +310,14 @@ def upload_questions():
             
         elif filename.endswith('.docx'):
             if docx is None:
-                return jsonify({"status": "error", "message": "กรุณาติดตั้ง python-docx"}), 500
+                return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ Word กรุณาติดตั้ง python-docx"}), 500
             doc = docx.Document(file)
             text = "\n".join([para.text for para in doc.paragraphs])
             new_qs = parse_text_to_questions(text)
             
         elif filename.endswith('.pdf'):
             if fitz is None:
-                return jsonify({"status": "error", "message": "กรุณาติดตั้ง PyMuPDF"}), 500
+                return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ PDF กรุณาติดตั้ง PyMuPDF"}), 500
             
             file_bytes = file.read()
             doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -294,28 +328,26 @@ def upload_questions():
             new_qs = parse_text_to_questions(text)
             
         else:
-            return jsonify({"status": "error", "message": "รองรับเฉพาะ .json, .csv, .docx, .md, .pdf เท่านั้น"}), 400
+            return jsonify({"status": "error", "message": "รองรับไฟล์ .json, .csv, .docx, .md, .pdf และไฟล์รูปภาพทั่วไปเท่านั้น"}), 400
 
         if len(new_qs) == 0:
-            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์"}), 400
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง"}), 400
 
-        global questions
-        # ป้องกันกรณีอัปโหลด JSON แล้วไม่มีคีย์ image_url แนบมา
-        for q_item in new_qs:
-            if "image_url" not in q_item:
-                # รองรับกรณีผู้ใช้สลับใช้ระหว่างชื่อ img และ image_url ในไฟล์เก่า
-                q_item["image_url"] = q_item.get("img", "")
+        # ตรวจสอบและเติม Key image_url ให้ครบทุกข้อเพื่อความปลอดภัย
+        for item in new_qs:
+            if "image_url" not in item:
+                item["image_url"] = ""
 
         questions = new_qs
-        
         with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(questions, f, ensure_ascii=False, indent=4)
             
         save_db(get_default_state())
-        return jsonify({"status": "success", "message": f"อัปโหลดสำเร็จ {len(questions)} ข้อ"})
+        return jsonify({"status": "success", "message": f"อัปโหลดสำเร็จ {len(questions)} ข้อ และรีเซ็ตระบบแล้ว"})
         
     except Exception as e:
-        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
+
 
 @app.route('/api/import-gsheet', methods=['POST'])
 def import_gsheet():
@@ -342,16 +374,16 @@ def import_gsheet():
             csv_data = response.read().decode('utf-8')
             
         if "<html" in csv_data.lower() or "<doctype" in csv_data.lower():
-            return jsonify({"status": "error", "message": "ดึงข้อมูลล้มเหลว: โปรดแชร์ Google Sheet ให้เป็นสาธารณะ"}), 400
+            return jsonify({"status": "error", "message": "ดึงข้อมูลล้มเหลว: โปรดตรวจสอบว่าคุณได้แชร์ลิงก์ Google Sheet เป็น 'ทุกคนที่มีลิงก์มีสิทธิ์อ่าน' แล้ว"}), 400
 
         stream = io.StringIO(csv_data, newline=None)
         new_qs = []
         for row in csv.reader(stream):
             if len(row) >= 2:
                 q, a = row[0].strip(), row[1].strip()
-                image_url = row[2].strip() if len(row) > 2 else ""  # คอลัมน์ที่ 3 เป็นรูปภาพ
+                img = row[2].strip() if len(row) > 2 else ""
                 if q.lower() in ['q', 'โจทย์', 'คำถาม'] and a.lower() in ['a', 'เฉลย', 'คำตอบ']: continue
-                if q and a: new_qs.append({"q": q, "a": a, "image_url": image_url})
+                if q and a: new_qs.append({"q": q, "a": a, "image_url": img})
                 
         if len(new_qs) == 0:
             return jsonify({"status": "error", "message": "ไม่พบข้อมูลในแผ่นงาน"}), 400
@@ -363,10 +395,15 @@ def import_gsheet():
             json.dump(questions, f, ensure_ascii=False, indent=4)
             
         save_db(get_default_state())
-        return jsonify({"status": "success", "message": f"ดึงข้อมูลสำเร็จ {len(questions)} ข้อ"})
+        return jsonify({"status": "success", "message": f"ดึงข้อมูลจาก Sheet สำเร็จจำนวน {len(questions)} ข้อ"})
         
+    except urllib.error.HTTPError as e:
+        if e.code in [401, 403]:
+            return jsonify({"status": "error", "message": "ไม่มีสิทธิ์เข้าถึงไฟล์ (กรุณาปรับการตั้งค่าแชร์ใน Google Sheets ให้เป็นสาธารณะ)"}), 403
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด HTTP {e.code}"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": f"ดึงข้อมูลไม่สำเร็จ: {str(e)}"}), 500
+
 
 @app.route('/api/start', methods=['POST'])
 def start_game():
@@ -374,7 +411,7 @@ def start_game():
         return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
     
     if len(questions) == 0:
-         return jsonify({"status": "error", "message": "ไม่มีโจทย์ในระบบ"}), 400
+         return jsonify({"status": "error", "message": "ไม่มีโจทย์ในระบบ กรุณาอัปโหลดโจทย์ก่อน"}), 400
 
     db = load_db()
     db["is_started"] = True
@@ -388,15 +425,14 @@ def start_game():
         "status": "success",
         "state": {
             "is_started": True, "is_time_up": False, "is_end": False,
-            "current_number": 1, 
-            "question": questions[0]["q"], 
-            "answer": questions[0]["a"],
-            "image_url": questions[0].get("image_url", ""),  # เปลี่ยนเป็น image_url แล้ว
+            "current_number": 1, "question": questions[0]["q"], "answer": questions[0]["a"],
+            "image_url": questions[0].get("image_url", ""),
             "correct_count": 0, "incorrect_count": 0,
             "school_scores": db["school_scores"],
             "active_users_count": get_active_users_count()
         }
     })
+
 
 @app.route('/api/state')
 def get_state():
@@ -412,15 +448,15 @@ def get_state():
 
     current_q = ""
     correct_ans = ""
-    current_img = ""
     correct_count = 0
     incorrect_count = 0
+    img_url = ""
 
     if db["is_started"] and len(questions) > 0:
         current_idx = db["current_index"]
         current_q = questions[current_idx]["q"] if not db["is_end"] else ""
         correct_ans = questions[current_idx]["a"]
-        current_img = questions[current_idx].get("image_url", "") if not db["is_end"] else ""
+        img_url = questions[current_idx].get("image_url", "")
         
         for p_email, player_data in db.get("current_answers", {}).items():
             if is_correct(player_data.get("answer"), correct_ans):
@@ -435,12 +471,13 @@ def get_state():
         "current_number": db["current_index"] + 1,
         "question": current_q,
         "answer": correct_ans,
-        "image_url": current_img,  # อัปเดตคีย์ส่งออกสำหรับ Frontend
+        "image_url": img_url,
         "correct_count": correct_count,
         "incorrect_count": incorrect_count,
         "school_scores": db["school_scores"],
         "active_users_count": get_active_users_count()
     })
+
 
 @app.route('/api/timeout', methods=['POST'])
 def trigger_timeout():
@@ -453,6 +490,7 @@ def trigger_timeout():
         
     db["is_time_up"] = True
     current_idx = db["current_index"]
+    
     correct_count = 0
     incorrect_count = 0
     
@@ -462,6 +500,7 @@ def trigger_timeout():
         
         for email, player_data in list(db["current_answers"].items()):
             is_ans_correct = is_correct(player_data["answer"], correct_answer)
+            
             if is_ans_correct:
                 correct_count += 1
             else:
@@ -469,34 +508,37 @@ def trigger_timeout():
             
             if not player_data.get("evaluated", False):
                 school = player_data.get("school") or "ไม่ระบุสังกัด"
+                
                 if is_ans_correct:
                     school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
                     db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
+                
                 player_data["evaluated"] = True
                 
         for school, count in school_correct_counts.items():
             if school not in db["school_scores"]:
                 db["school_scores"][school] = 0
-            db["school_scores"][school] += calculate_team_points(count)
+            
+            earned_points = calculate_team_points(count)
+            db["school_scores"][school] += earned_points
             
     save_db(db)
     current_q = questions[current_idx]["q"] if current_idx < len(questions) else ""
     correct_ans = questions[current_idx]["a"] if current_idx < len(questions) else ""
-    current_img = questions[current_idx].get("image_url", "") if current_idx < len(questions) else ""
+    img_url = questions[current_idx].get("image_url", "") if current_idx < len(questions) else ""
     
     return jsonify({
         "status": "success",
         "state": {
             "is_started": True, "is_time_up": True, "is_end": db["is_end"],
-            "current_number": current_idx + 1, 
-            "question": current_q, 
-            "answer": correct_ans,
-            "image_url": current_img,
+            "current_number": current_idx + 1, "question": current_q, "answer": correct_ans,
+            "image_url": img_url,
             "correct_count": correct_count, "incorrect_count": incorrect_count,
             "school_scores": db["school_scores"],
             "active_users_count": get_active_users_count()
         }
     })
+
 
 @app.route('/api/next', methods=['POST'])
 def next_question():
@@ -504,6 +546,9 @@ def next_question():
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
     db = load_db()
+    if not db["is_started"]:
+        return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
+        
     current_idx = db["current_index"]
     
     if current_idx < len(questions):
@@ -521,7 +566,9 @@ def next_question():
         for school, count in school_correct_counts.items():
             if school not in db["school_scores"]:
                 db["school_scores"][school] = 0
-            db["school_scores"][school] += calculate_team_points(count)
+            
+            earned_points = calculate_team_points(count)
+            db["school_scores"][school] += earned_points
 
     if (current_idx + 1) >= len(questions):
         db["is_end"] = True
@@ -542,19 +589,22 @@ def next_question():
     db["current_answers"] = {} 
     save_db(db)
     
+    next_q = questions[db["current_index"]]["q"]
+    next_a = questions[db["current_index"]]["a"]
+    next_img = questions[db["current_index"]].get("image_url", "")
+    
     return jsonify({
         "status": "success",
         "state": {
             "is_started": True, "is_time_up": False, "is_end": False,
-            "current_number": db["current_index"] + 1, 
-            "question": questions[db["current_index"]]["q"], 
-            "answer": questions[db["current_index"]]["a"],
-            "image_url": questions[db["current_index"]].get("image_url", ""),
+            "current_number": db["current_index"] + 1, "question": next_q, "answer": next_a,
+            "image_url": next_img,
             "correct_count": 0, "incorrect_count": 0,
             "school_scores": db["school_scores"],
             "active_users_count": get_active_users_count()
         }
     })
+
 
 @app.route('/api/reset', methods=['POST'])
 def reset_game():
@@ -573,6 +623,7 @@ def reset_game():
         }
     })
 
+
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
     db = load_db()
@@ -582,6 +633,7 @@ def submit_answer():
     data = request.json or {}
     player_answer = data.get('answer', '')
     email = session.get('email') or data.get('player_id')
+    
     school = data.get('school') or session.get('name') or "ไม่ระบุสังกัด"
     name = session.get('name', 'ผู้เล่น')
     
@@ -589,17 +641,24 @@ def submit_answer():
         return jsonify({'status': 'error', 'message': 'ไม่พบข้อมูลผู้ใช้งาน'}), 401
         
     db["current_answers"][email] = {
-        "answer": player_answer, "school": school, "name": name, "evaluated": False
+        "answer": player_answer,
+        "school": school, 
+        "name": name,
+        "evaluated": False
     }
+    
     active_users_memory[email] = time.time()
     save_db(db)
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
+
 
 @app.route('/api/my-score')
 def get_my_score():
     db = load_db()
     email = session.get('email')
-    return jsonify({"score": db["player_scores"].get(email, 0)})
+    score = db["player_scores"].get(email, 0)
+    return jsonify({"score": score})
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

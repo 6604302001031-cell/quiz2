@@ -13,10 +13,7 @@
         .btn-logout { background-color: #dc3545; color: white; padding: 7px 14px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; transition: 0.2s; }
         .btn-logout:hover { background-color: #c82333; }
         
-        .online-status {
-            font-size: 14px; font-weight: bold; color: #1e8e3e; background-color: #e6f4ea;
-            padding: 6px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px;
-        }
+        .online-status { font-size: 14px; font-weight: bold; color: #1e8e3e; background-color: #e6f4ea; padding: 6px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
 
         h2 { color: #333333; margin-bottom: 25px; font-size: 26px; }
         .status-box { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; text-align: left; margin-bottom: 25px; position: relative; }
@@ -27,40 +24,11 @@
         .dot-yellow { background-color: #f1c40f; }
 
         /* 📌 ส่วนกล่องแสดงโจทย์ข้อความ */
-        .question-display {
-            font-size: 16px;
-            color: #212529;
-            line-height: 1.8;
-            white-space: pre-wrap;
-            word-break: break-word;
-            background-color: #ffffff;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #ced4da;
-            width: 100%;
-            box-sizing: border-box;
-            max-height: 180px;
-            overflow-y: auto;
-            margin-top: 10px;
-            font-weight: normal;
-        }
+        .question-display { font-size: 16px; color: #212529; line-height: 1.8; white-space: pre-wrap; word-break: break-word; background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #ced4da; width: 100%; box-sizing: border-box; max-height: 180px; overflow-y: auto; margin-top: 10px; font-weight: normal; }
 
-        /* 📌 เพิ่มใหม่: สไตล์กล่องแสดงรูปภาพโจทย์ */
-        .question-image-box {
-            margin-top: 12px;
-            text-align: center;
-            width: 100%;
-            display: none; /* ซ่อนไว้ก่อน ถ้ามีรูปค่อยเปิดด้วย JS */
-        }
-        .question-image-box img {
-            max-width: 100%;
-            max-height: 220px;
-            border-radius: 8px;
-            border: 1px solid #ced4da;
-            object-fit: contain;
-            background-color: #ffffff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
+        /* 📌 สไตล์กล่องแสดงรูปภาพโจทย์ */
+        .question-image-box { margin-top: 12px; text-align: center; width: 100%; display: none; }
+        .question-image-box img { max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid #ced4da; object-fit: contain; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         
         /* 📌 ส่วนตั้งค่าเวลา */
         .timer-setting { margin-top: 15px; text-align: center; font-size: 15px; font-weight: bold; color: #555; }
@@ -74,6 +42,7 @@
         .stat-correct { background-color: #e6f4ea; color: #1e8e3e; border: 1px solid #ceead6; }
         .stat-incorrect { background-color: #fce8e6; color: #d93025; border: 1px solid #fad2cf; }
 
+        /* 📌 ปุ่มกดต่างๆ */
         .btn { font-size: 16px; padding: 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 12px; transition: 0.2s; }
         .btn:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; opacity: 0.7; }
         .btn-orange { background-color: #ff9800; color: white; }
@@ -91,9 +60,12 @@
         
         .timer-btn-group { display: flex; gap: 10px; margin-bottom: 12px; }
         .timer-btn-group .btn { margin-bottom: 0; }
+        
+        /* 📌 Modal */
         .modal-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; }
+        .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; max-height: 90vh; overflow-y: auto; }
         .close-modal-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; border: none; background: none; }
+        
         .score-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
         .score-table th { background-color: #f1f3f5; }
@@ -101,6 +73,7 @@
         .edit-icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px; padding: 0; transition: transform 0.2s; display: inline-block; }
         .edit-icon-btn:hover { transform: scale(1.2); }
 
+        /* 📌 Fullscreen Styles */
         .show-on-fullscreen { display: none; } 
 
         #fullscreen-target:fullscreen {
@@ -118,32 +91,10 @@
         #fullscreen-target:fullscreen .hide-on-fullscreen { display: none !important; }
         #fullscreen-target:fullscreen .show-on-fullscreen { display: block !important; }
         
-        /* 📌 ปรับหน้าตาตัวหนังสือโจทย์ตอน Fullscreen */
-        #fullscreen-target:fullscreen .question-display {
-            font-size: 38px !important;
-            max-height: 30vh !important;
-            border: none !important;
-            background: transparent !important;
-            padding: 10px !important;
-            line-height: 1.5 !important;
-            text-align: center !important;
-            margin: auto 0 10px 0 !important; 
-            max-width: 95% !important;
-        }
+        #fullscreen-target:fullscreen .question-display { font-size: 38px !important; max-height: 30vh !important; border: none !important; background: transparent !important; padding: 10px !important; line-height: 1.5 !important; text-align: center !important; margin: auto 0 10px 0 !important; max-width: 95% !important; }
 
-        /* 📌 เพิ่มใหม่: ปรับขนาดรูปภาพโจทย์ตอน Fullscreen ให้ใหญ่สะใจอ่านง่าย */
-        #fullscreen-target:fullscreen .question-image-box {
-            display: block !important;
-            margin: 10px 0 20px 0 !important;
-            width: 95% !important;
-            max-width: 900px !important;
-        }
-        #fullscreen-target:fullscreen .question-image-box img {
-            max-height: 42vh !important;
-            max-width: 100% !important;
-            border: 2px solid #dee2e6 !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
-        }
+        #fullscreen-target:fullscreen .question-image-box { display: block !important; margin: 10px 0 20px 0 !important; width: 95% !important; max-width: 900px !important; }
+        #fullscreen-target:fullscreen .question-image-box img { max-height: 42vh !important; max-width: 100% !important; border: 2px solid #dee2e6 !important; box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important; }
 
         #fullscreen-target:fullscreen .timer-box { font-size: 60px !important; padding: 20px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 10px !important; margin-bottom: 15px !important; }
         #fullscreen-target:fullscreen .answer-box { font-size: 42px !important; padding: 20px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 15px !important; }
@@ -237,17 +188,25 @@
 
         <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
 
-        <label style="font-weight: bold; font-size: 14px; color: #555;">2. อัปโหลดจากไฟล์ในเครื่อง</label>
-        <input type="file" id="question-file" accept=".json, .pdf, .csv, .docx, .md, .jpg, .jpeg, .png, .webp" style="margin-top: 8px; margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
-        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดไฟล์จากเครื่อง</button>
+        <label style="font-weight: bold; font-size: 14px; color: #555;">2. อัปโหลดชุดโจทย์จากไฟล์ในเครื่อง</label>
+        <input type="file" id="question-file" accept=".json, .pdf, .csv, .docx, .md" style="margin-top: 8px; margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดไฟล์เอกสาร</button>
         
+        <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
+
+        <label style="font-weight: bold; font-size: 14px; color: #555;">3. อัปโหลดรูปภาพโจทย์เดี่ยว (.jpg, .png)</label>
+        <input type="text" id="image-question-text" placeholder="พิมพ์คำถาม (ถ้ามี)..." style="margin-top: 8px; margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <input type="file" id="image-file" accept=".jpg, .jpeg, .png, .webp" style="margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <input type="text" id="image-answer-text" placeholder="พิมพ์เฉลยสำหรับรูปภาพนี้..." style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <button onclick="uploadImageQuestion()" class="btn btn-orange" id="btn-upload-img" style="width: 100%; padding: 12px; font-size: 16px;">🖼️ อัปโหลดโจทย์รูปภาพและเฉลย</button>
+
         <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
             <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์/ข้อมูลที่รองรับ:</strong></p>
             <ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
                 <li><b>Google Sheets / .csv</b> - คอลัมน์แรกเป็นโจทย์ คอลัมน์สองเป็นเฉลย และคอลัมน์สามเป็นลิงก์รูปภาพ (ถ้ามี)</li>
                 <li><b>.json</b> - โครงสร้าง List: <code>[{"q": "คำถาม", "a": "เฉลย", "image_url": "ลิงก์รูปภาพ"}]</code></li>
                 <li><b>.pdf / .docx / .md</b> - พิมพ์คำว่า "โจทย์:" และ "เฉลย:" กำกับ</li>
-                <li><b>.jpg / .png / .webp</b> - สำหรับอัปโหลดโจทย์ที่เป็นไฟล์รูปภาพโดยตรง</li>
+                <li><b>.jpg / .png / .webp</b> - ใช้อัปโหลดโจทย์ที่เป็นไฟล์รูปภาพโดยตรง (ช่องที่ 3)</li>
             </ul>
         </div>
     </div>
@@ -262,36 +221,41 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
+    /* -- Modal Controls -- */
     function openEditModal() { document.getElementById('upload-modal').style.display = 'flex'; }
     function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
     function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
 
-    function importGoogleSheet() {
+    /* -- Upload Features -- */
+    async function importGoogleSheet() {
         const urlInput = document.getElementById('gsheet-url').value.trim();
         if (!urlInput) { alert("⚠️ กรุณาวางลิงก์ Google Sheets ก่อนครับ"); return; }
         
         const btnGsheet = document.getElementById('btn-gsheet');
         btnGsheet.disabled = true; btnGsheet.innerText = "กำลังดึงข้อมูล...";
 
-        fetch('/api/import-gsheet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: urlInput })
-        })
-        .then(res => res.json())
-        .then(data => {
+        try {
+            const res = await fetch('/api/import-gsheet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: urlInput })
+            });
+            const data = await res.json();
             alert(data.message);
             if (data.status === "success") {
                 document.getElementById('gsheet-url').value = "";
                 closeEditModal();
                 checkGameState();
             }
-        })
-        .catch(err => { alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ"); console.error(err); })
-        .finally(() => { btnGsheet.disabled = false; btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets"; });
+        } catch (err) {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
+            console.error(err);
+        } finally {
+            btnGsheet.disabled = false; btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets";
+        }
     }
 
-    function uploadQuestions() {
+    async function uploadQuestions() {
         const fileInput = document.getElementById('question-file');
         const file = fileInput.files[0];
         if (!file) { alert("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด"); return; }
@@ -302,18 +266,68 @@
         const btnUpload = document.getElementById('btn-upload');
         btnUpload.disabled = true; btnUpload.innerText = "กำลังอัปโหลด...";
 
-        fetch('/api/upload-questions', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => {
+        try {
+            const res = await fetch('/api/upload-questions', { method: 'POST', body: formData });
+            const data = await res.json();
             alert(data.message);
             if (data.status === "success") {
                 fileInput.value = ""; closeEditModal(); checkGameState();
             }
-        })
-        .catch(err => { alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ"); console.error(err); })
-        .finally(() => { btnUpload.disabled = false; btnUpload.innerText = "📤 อัปโหลดไฟล์จากเครื่อง"; });
+        } catch (err) {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
+            console.error(err);
+        } finally {
+            btnUpload.disabled = false; btnUpload.innerText = "📤 อัปโหลดไฟล์เอกสาร";
+        }
     }
 
+    /* -- New Feature: Upload Single Image Question -- */
+    async function uploadImageQuestion() {
+        const fileInput = document.getElementById('image-file');
+        const questionInput = document.getElementById('image-question-text');
+        const answerInput = document.getElementById('image-answer-text');
+        
+        const file = fileInput.files[0];
+        const question = questionInput.value.trim();
+        const answer = answerInput.value.trim();
+
+        if (!file) { alert("⚠️ กรุณาเลือกไฟล์รูปภาพ .jpg หรือ .png ก่อนครับ"); return; }
+        if (!answer) { alert("⚠️ กรุณาระบุเฉลยสำหรับข้อนี้ด้วยครับ"); return; }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("question", question); // ส่งคำถามไปด้วย
+        formData.append("answer", answer);     // ส่งเฉลยไปด้วย
+
+        const btnUploadImg = document.getElementById('btn-upload-img');
+        btnUploadImg.disabled = true; 
+        btnUploadImg.innerText = "กำลังอัปโหลด...";
+
+        try {
+            // โค้ดนี้จะส่งไปที่ Endpoint สำหรับอัปโหลดภาพ (แอดมินต้องสร้าง /api/upload-image-question ในฝั่ง Server ด้วย)
+            const res = await fetch('/api/upload-image-question', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            alert(data.message);
+            
+            if (data.status === "success") {
+                // ล้างค่าข้อมูลหลังอัปโหลดเสร็จ
+                fileInput.value = ""; 
+                questionInput.value = ""; 
+                answerInput.value = "";
+                closeEditModal(); 
+                checkGameState();
+            }
+        } catch (err) {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
+            console.error(err);
+        } finally {
+            btnUploadImg.disabled = false; 
+            btnUploadImg.innerText = "🖼️ อัปโหลดโจทย์รูปภาพและเฉลย";
+        }
+    }
+
+    /* -- UI & Timers -- */
     function toggleFullscreen() {
         const elem = document.getElementById('fullscreen-target');
         if (!document.fullscreenElement) {
@@ -377,6 +391,7 @@
     }
     window.resumeTimer = runResumeTimer;
 
+    /* -- Score Controls -- */
     function openScoreModal() { 
         updateScoreBoard(activeScores);
         document.getElementById('score-modal').style.display = 'flex'; 
@@ -384,6 +399,17 @@
     function closeScoreModal() { document.getElementById('score-modal').style.display = 'none'; }
     function closeScoreModalOutside(e) { if (e.target.id === 'score-modal') closeScoreModal(); }
 
+    function updateScoreBoard(schoolScores) {
+        const tbody = document.getElementById('score-board-body');
+        if (!schoolScores || Object.keys(schoolScores).length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr>';
+            return;
+        }
+        let arr = Object.keys(schoolScores).map(k => ({ name: k, score: schoolScores[k] })).sort((a,b) => b.score - a.score);
+        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td><span style="color:#2196f3; font-weight:bold;">${item.score} คะแนน</span></td></tr>`).join('');
+    }
+
+    /* -- Game State Management -- */
     function toggleButtonsState(disabled) {
         ['btn-start', 'btn-pause', 'btn-resume', 'btn-timeout', 'btn-next', 'btn-reset'].forEach(id => {
             const el = document.getElementById(id);
@@ -502,7 +528,7 @@
         }
     }
 
-    function controlGame(url) {
+    async function controlGame(url) {
         if (isActionInProgress) return;
         isActionInProgress = true;
         toggleButtonsState(true);
@@ -512,43 +538,36 @@
             requestData.time_limit = parseInt(document.getElementById('custom-time-input').value) || 120;
         }
 
-        fetch(url, { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: Object.keys(requestData).length > 0 ? JSON.stringify(requestData) : null
-        })
-        .then(res => res.json())
-        .then(resData => {
+        try {
+            const res = await fetch(url, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: Object.keys(requestData).length > 0 ? JSON.stringify(requestData) : null
+            });
+            const resData = await res.json();
+            
             if (resData.status === "success" && resData.state) {
                 renderUI(resData.state);
             }
-            setTimeout(() => { isActionInProgress = false; toggleButtonsState(false); }, 400);
-        })
-        .catch(err => {
+        } catch (err) {
             console.error(err);
-            isActionInProgress = false;
-            toggleButtonsState(false);
-        });
-    }
-
-    function checkGameState() {
-        if (isActionInProgress) return;
-        fetch('/api/state')
-        .then(res => res.json())
-        .then(data => renderUI(data))
-        .catch(err => console.error(err));
-    }
-
-    function updateScoreBoard(schoolScores) {
-        const tbody = document.getElementById('score-board-body');
-        if (!schoolScores || Object.keys(schoolScores).length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr>';
-            return;
+        } finally {
+            setTimeout(() => { isActionInProgress = false; toggleButtonsState(false); }, 400);
         }
-        let arr = Object.keys(schoolScores).map(k => ({ name: k, score: schoolScores[k] })).sort((a,b) => b.score - a.score);
-        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td><span style="color:#2196f3; font-weight:bold;">${item.score} คะแนน</span></td></tr>`).join('');
     }
 
+    async function checkGameState() {
+        if (isActionInProgress) return;
+        try {
+            const res = await fetch('/api/state');
+            const data = await res.json();
+            renderUI(data);
+        } catch (err) {
+            console.error("Game state check failed:", err);
+        }
+    }
+
+    // Initialize
     stateCheckInterval = setInterval(checkGameState, 2000);
     window.onload = checkGameState;
 </script>

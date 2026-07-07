@@ -4,6 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>หน้าจอผู้เล่น - ตอบคำถาม</title>
+    
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+    </script>
+
     <style>
         body {
             font-family: 'Sarabun', Arial, sans-serif;
@@ -78,7 +92,7 @@
             margin-bottom: 25px;
         }
         .input-group {
-            margin-bottom: 25px;
+            margin-bottom: 15px; /* ปรับ margin เพื่อเว้นที่ให้ Live Preview */
         }
         input[type="text"] {
             width: 100%;
@@ -94,6 +108,30 @@
             border-color: #2196f3;
             outline: none;
         }
+        
+        /* 📌 สไตล์สำหรับกล่องแสดงผลสมการคณิตศาสตร์ (Live Preview) */
+        .math-preview-box {
+            background-color: #f8f9fa;
+            border: 1px dashed #ced4da;
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 40px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #495057;
+            overflow-x: auto;
+        }
+        .math-hint {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+            text-align: left;
+            display: block;
+        }
+
         .btn {
             font-size: 20px;
             padding: 15px 30px;
@@ -180,8 +218,13 @@
         <h2 id="question-number">ส่งคำตอบข้อที่ -</h2>
 
         <form id="answer-form" onsubmit="submitAnswer(event)">
+            <span class="math-hint">💡 รองรับสมการคณิตศาสตร์ (พิมพ์ครอบด้วย $...$ เช่น $x^2 + y^2$)</span>
             <div class="input-group">
-                <input type="text" id="answer-input" placeholder="พิมพ์คำตอบของคุณที่นี่..." required autocomplete="off">
+                <input type="text" id="answer-input" placeholder="พิมพ์คำตอบของคุณที่นี่..." required autocomplete="off" oninput="renderMathPreview()">
+            </div>
+            
+            <div id="math-preview" class="math-preview-box">
+                <span style="color: #adb5bd; font-size: 14px;">(ตัวอย่างผลลัพธ์คณิตศาสตร์จะแสดงที่นี่)</span>
             </div>
 
             <button type="submit" id="submit-btn" class="btn btn-blue">ส่งคำตอบ (Submit)</button>
@@ -198,22 +241,38 @@
     let currentQuestionNumber = 0;
     let hasSubmittedThisQuestion = false;
     
-    // 🌟 ดึงชื่อทีมที่เคยบันทึกไว้ในเบราว์เซอร์
     let teamName = localStorage.getItem('quiz_team_name');
     let gamePollingInterval = null;
 
-    // 🌟 ระบบตรวจสอบสถานะตอนเปิดหน้าเว็บ
+    // 📌 ฟังก์ชันสำหรับแปลงข้อความให้เป็นสมการคณิตศาสตร์แบบเรียลไทม์
+    function renderMathPreview() {
+        const inputStr = document.getElementById('answer-input').value;
+        const previewBox = document.getElementById('math-preview');
+        
+        if (inputStr.trim() === '') {
+            previewBox.innerHTML = '<span style="color: #adb5bd; font-size: 14px;">(ตัวอย่างผลลัพธ์คณิตศาสตร์จะแสดงที่นี่)</span>';
+            return;
+        }
+
+        // วางข้อความที่พิมพ์ลงไปในกล่อง Preview
+        previewBox.innerText = inputStr;
+
+        // สั่งให้ MathJax ทำการเรนเดอร์ใหม่ในกล่อง Preview
+        if (window.MathJax) {
+            MathJax.typesetPromise([previewBox]).catch(function (err) {
+                console.warn("MathJax Error: ", err.message);
+            });
+        }
+    }
+
     function initPlayer() {
         if (!teamName) {
-            // ถ้ายังไม่มีชื่อทีม โชว์หน้ากรอกชื่อ บล็อกหน้าอื่นๆ
             document.getElementById('setup-screen').style.display = 'block';
             document.getElementById('waiting-screen').style.display = 'none';
             document.getElementById('quiz-screen').style.display = 'none';
             
-            // หยุดดึงข้อมูลเซิร์ฟเวอร์ชั่วคราวเพื่อประหยัดทรัพยากร
             if (gamePollingInterval) clearInterval(gamePollingInterval);
         } else {
-            // ถ้ามีชื่อทีมแล้ว ซ่อนหน้ากรอกชื่อ โชว์ชื่อมุมซ้ายบน และรันระบบเกม
             document.getElementById('setup-screen').style.display = 'none';
             
             const teamDisplay = document.getElementById('team-name-display');
@@ -223,14 +282,12 @@
             checkGameState();
             fetchMyScore();
             
-            // สั่งดึงข้อมูลทุก 1 วินาที
             if (!gamePollingInterval) {
                 gamePollingInterval = setInterval(checkGameState, 1000);
             }
         }
     }
 
-    // 🌟 ฟังก์ชันบันทึกชื่อทีม
     function saveTeamName() {
         const inputVal = document.getElementById('team-input').value.trim();
         if (inputVal.length < 2) {
@@ -238,16 +295,14 @@
             return;
         }
         teamName = inputVal;
-        localStorage.setItem('quiz_team_name', teamName); // บันทึกลงเครื่องผู้เล่น
-        initPlayer(); // โหลดระบบเกม
+        localStorage.setItem('quiz_team_name', teamName); 
+        initPlayer(); 
     }
 
-    // กด Enter ในช่องกรอกชื่อเพื่อบันทึก
     document.getElementById('team-input').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') saveTeamName();
     });
 
-    // ดึงคะแนนล่าสุดของตนเอง
     function fetchMyScore() {
         fetch('/api/my-score')
         .then(res => res.json())
@@ -259,9 +314,8 @@
         .catch(err => console.error('Error fetching score:', err));
     }
 
-    // ตรวจสอบสถานะของเกม (Real-time Sync)
     function checkGameState() {
-        if (!teamName) return; // ถ้ายงไม่มีชื่อทีม ไม่ต้องดึงข้อมูล
+        if (!teamName) return; 
 
         fetch('/api/state')
         .then(res => res.json())
@@ -272,11 +326,11 @@
             const submitBtn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
             
-            // กรณีที่เกมยังไม่เริ่ม หรือถูกรีเซ็ต
             if (!data.is_started) {
                 waitingScreen.style.display = 'block';
                 quizScreen.style.display = 'none';
                 answerInput.value = '';
+                renderMathPreview(); // เคลียร์ Preview
                 answerInput.disabled = false;
                 resultMsg.innerText = '';
                 submitBtn.disabled = false;
@@ -286,16 +340,15 @@
                 return;
             }
 
-            // แสดงหน้าจอทำโจทย์
             waitingScreen.style.display = 'none';
             quizScreen.style.display = 'block';
 
-            // ตรวจสอบว่ามีการเปลี่ยนข้อคำถามใหม่หรือไม่
             if (data.current_number !== currentQuestionNumber) {
                 currentQuestionNumber = data.current_number;
                 hasSubmittedThisQuestion = false; 
                 
                 answerInput.value = ''; 
+                renderMathPreview(); // เคลียร์ Preview เมื่อขึ้นข้อใหม่
                 answerInput.disabled = false;
                 submitBtn.disabled = false;
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';
@@ -306,7 +359,6 @@
                 setTimeout(() => answerInput.focus(), 100);
             }
 
-            // ตรวจสอบสถานะจบการแข่งขัน หรือ หมดเวลา
             if (data.is_end) {
                 document.getElementById('question-number').innerText = '🏁 สิ้นสุดการแข่งขัน';
                 document.getElementById('answer-form').style.display = 'none';
@@ -333,7 +385,6 @@
         .catch(err => console.error('Error fetching game state:', err));
     }
 
-    // ฟังก์ชันส่งคำตอบไปยัง Backend
     function submitAnswer(event) {
         event.preventDefault();
         
@@ -351,7 +402,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                school: teamName,  // 🌟 ส่งชื่อทีมไปให้ Backend แทนชื่อจริง
+                school: teamName,  
                 player_id: playerId,  
                 answer: answerText
             })
@@ -378,7 +429,6 @@
         });
     }
 
-    // รันฟังก์ชันเมื่อเปิดหน้าเว็บ
     window.onload = initPlayer;
 </script>
 

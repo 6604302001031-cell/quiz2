@@ -26,12 +26,12 @@
         .dot-red { background-color: #f44336; }
         .dot-yellow { background-color: #f1c40f; }
 
-        /* 📌 เพิ่มใหม่: สไตล์สำหรับกล่องแสดงโจทย์โดยเฉพาะ */
+        /* 📌 ส่วนกล่องแสดงโจทย์ข้อความ */
         .question-display {
             font-size: 16px;
             color: #212529;
             line-height: 1.8;
-            white-space: pre-wrap; /* ทำให้เว้นบรรทัดตามไฟล์ต้นฉบับ */
+            white-space: pre-wrap;
             word-break: break-word;
             background-color: #ffffff;
             padding: 15px;
@@ -39,10 +39,27 @@
             border: 1px solid #ced4da;
             width: 100%;
             box-sizing: border-box;
-            max-height: 250px;
+            max-height: 180px;
             overflow-y: auto;
             margin-top: 10px;
             font-weight: normal;
+        }
+
+        /* 📌 เพิ่มใหม่: สไตล์กล่องแสดงรูปภาพโจทย์ */
+        .question-image-box {
+            margin-top: 12px;
+            text-align: center;
+            width: 100%;
+            display: none; /* ซ่อนไว้ก่อน ถ้ามีรูปค่อยเปิดด้วย JS */
+        }
+        .question-image-box img {
+            max-width: 100%;
+            max-height: 220px;
+            border-radius: 8px;
+            border: 1px solid #ced4da;
+            object-fit: contain;
+            background-color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
         
         /* 📌 ส่วนตั้งค่าเวลา */
@@ -92,7 +109,7 @@
             flex-direction: column !important;
             justify-content: center !important;
             align-items: center !important;
-            padding: 50px !important;
+            padding: 40px !important;
             box-sizing: border-box !important;
             width: 100% !important;
             height: 100% !important;
@@ -101,23 +118,37 @@
         #fullscreen-target:fullscreen .hide-on-fullscreen { display: none !important; }
         #fullscreen-target:fullscreen .show-on-fullscreen { display: block !important; }
         
-        /* 📌 เพิ่มใหม่: ปรับหน้าตาตอน Fullscreen ให้ตัวใหญ่และอ่านง่าย */
+        /* 📌 ปรับหน้าตาตัวหนังสือโจทย์ตอน Fullscreen */
         #fullscreen-target:fullscreen .question-display {
-            font-size: 42px !important;
-            max-height: 80vh !important;
+            font-size: 38px !important;
+            max-height: 30vh !important;
             border: none !important;
             background: transparent !important;
-            padding: 20px !important;
-            line-height: 1.6 !important;
-            text-align: left !important;
-            margin: auto 0 20px 0 !important; 
-            max-width: 90% !important;
+            padding: 10px !important;
+            line-height: 1.5 !important;
+            text-align: center !important;
+            margin: auto 0 10px 0 !important; 
+            max-width: 95% !important;
         }
 
-        #fullscreen-target:fullscreen .timer-box { font-size: 65px !important; padding: 25px 60px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; margin-bottom: 20px !important; }
-        #fullscreen-target:fullscreen .answer-box { font-size: 45px !important; padding: 25px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; }
-        #fullscreen-target:fullscreen .stats-box { width: 80% !important; max-width: 750px !important; margin-top: 25px !important; margin-bottom: auto !important; gap: 30px !important; }
-        #fullscreen-target:fullscreen .stat-item { font-size: 38px !important; padding: 25px 20px !important; border-radius: 16px !important; }
+        /* 📌 เพิ่มใหม่: ปรับขนาดรูปภาพโจทย์ตอน Fullscreen ให้ใหญ่สะใจอ่านง่าย */
+        #fullscreen-target:fullscreen .question-image-box {
+            display: block !important;
+            margin: 10px 0 20px 0 !important;
+            width: 95% !important;
+            max-width: 900px !important;
+        }
+        #fullscreen-target:fullscreen .question-image-box img {
+            max-height: 42vh !important;
+            max-width: 100% !important;
+            border: 2px solid #dee2e6 !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
+        }
+
+        #fullscreen-target:fullscreen .timer-box { font-size: 60px !important; padding: 20px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 10px !important; margin-bottom: 15px !important; }
+        #fullscreen-target:fullscreen .answer-box { font-size: 42px !important; padding: 20px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 15px !important; }
+        #fullscreen-target:fullscreen .stats-box { width: 80% !important; max-width: 750px !important; margin-top: 20px !important; margin-bottom: auto !important; gap: 30px !important; }
+        #fullscreen-target:fullscreen .stat-item { font-size: 35px !important; padding: 20px 15px !important; border-radius: 16px !important; }
     </style>
 </head>
 <body>
@@ -142,6 +173,10 @@
                 <button class="edit-icon-btn hide-on-fullscreen" onclick="openEditModal()" title="อัปโหลด/แก้ไขโจทย์">✏️</button>
             </div>
             <div id="question-info" class="question-display">กำลังโหลด...</div>
+            
+            <div id="question-image-box" class="question-image-box">
+                <img id="question-image" src="" alt="โจทย์รูปภาพ">
+            </div>
         </div>
 
         <div id="timer-display" class="timer-box">⏱️ เวลาที่เหลือ: 120 วินาที</div>
@@ -209,8 +244,8 @@
         <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
             <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์/ข้อมูลที่รองรับ:</strong></p>
             <ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
-                <li><b>Google Sheets / .csv</b> - คอลัมน์แรกเป็นโจทย์ คอลัมน์สองเป็นเฉลย</li>
-                <li><b>.json</b> - โครงสร้าง List: <code>[{"q": "คำถาม", "a": "เฉลย"}]</code></li>
+                <li><b>Google Sheets / .csv</b> - คอลัมน์แรกเป็นโจทย์ คอลัมน์สองเป็นเฉลย และคอลัมน์สามเป็นลิงก์รูปภาพ (ถ้ามี)</li>
+                <li><b>.json</b> - โครงสร้าง List: <code>[{"q": "คำถาม", "a": "เฉลย", "image_url": "ลิงก์รูปภาพ"}]</code></li>
                 <li><b>.pdf / .docx / .md</b> - พิมพ์คำว่า "โจทย์:" และ "เฉลย:" กำกับ</li>
             </ul>
         </div>
@@ -333,12 +368,14 @@
         updateTimerDisplay();
     }
 
-    function resumeTimer() {
+    function runResumeTimer() { // แก้ชื่อฟังก์ชันให้ไม่ชนกับปุ่มหรือเรียกใช้จากภายนอก
         isPaused = false;
         document.getElementById('btn-pause').style.display = 'block';
         document.getElementById('btn-resume').style.display = 'none';
         updateTimerDisplay();
     }
+    // คืนค่าฟังก์ชันเดิมที่ผูกไว้กับ onclick="resumeTimer()"
+    window.resumeTimer = runResumeTimer;
 
     function openScoreModal() { 
         updateScoreBoard(activeScores);
@@ -369,12 +406,16 @@
 
         const statusText = document.getElementById('game-status-text');
         const questionInfo = document.getElementById('question-info');
-        const questionLabel = document.getElementById('question-number-label'); // 📌 เพิ่มตัวแปรจัดการหัวข้อ
+        const questionLabel = document.getElementById('question-number-label');
         const timerControlGroup = document.getElementById('timer-control-group');
         const answerBox = document.getElementById('answer-box');
         const answerText = document.getElementById('answer-text');
         const statsBox = document.getElementById('stats-box');
         const timerSettingContainer = document.getElementById('timer-setting-container');
+        
+        // 📌 ประกาศตัวแปรกล่องรูปภาพที่เพิ่มเข้ามาใหม่
+        const questionImgBox = document.getElementById('question-image-box');
+        const questionImg = document.getElementById('question-image');
 
         if (data.school_scores) activeScores = data.school_scores;
 
@@ -427,31 +468,40 @@
             statsBox.style.display = 'none';
         }
 
-        // 📌 แก้ไขใหม่: แยกการจัดการกล่องโจทย์ให้อ่านง่ายและสวยงาม
+        // 📌 ปรับปรุงการจัดการกล่องข้อความโจทย์ และ อัปเดตการแสดงผลรูปภาพ
         if (!data.is_started) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> ยังไม่เริ่มเกม';
             questionLabel.innerText = 'โจทย์ปัจจุบัน:';
             questionInfo.innerText = 'รอแอดมินกดเริ่มเกม';
             questionInfo.style.textAlign = 'center';
             questionInfo.style.fontWeight = 'bold';
+            questionImgBox.style.display = 'none'; // ซ่อนรูปเมื่อยังไม่เริ่มเกม
         } else if (data.is_end) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
             questionLabel.innerText = 'โจทย์ปัจจุบัน:';
             questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
             questionInfo.style.textAlign = 'center';
             questionInfo.style.fontWeight = 'bold';
-        } else if (data.is_time_up) {
-            statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
-            questionLabel.innerText = `โจทย์ข้อที่ ${data.current_number}:`;
-            questionInfo.innerText = data.question;
-            questionInfo.style.textAlign = 'left';
-            questionInfo.style.fontWeight = 'normal';
+            questionImgBox.style.display = 'none'; // ซ่อนรูปเมื่อจบการแข่งขัน
         } else {
-            statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
+            if (data.is_time_up) {
+                statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
+            } else {
+                statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
+            }
             questionLabel.innerText = `โจทย์ข้อที่ ${data.current_number}:`;
-            questionInfo.innerText = data.question;
+            questionInfo.innerText = data.question || '';
             questionInfo.style.textAlign = 'left';
             questionInfo.style.fontWeight = 'normal';
+
+            // 📌 ส่วนเช็คและแสดงรูปภาพโจทย์ (ส่งลิงก์รูปภาพผ่านคีย์ image_url)
+            if (data.image_url && data.image_url.trim() !== "") {
+                questionImg.src = data.image_url;
+                questionImgBox.style.display = 'block';
+            } else {
+                questionImgBox.style.display = 'none';
+                questionImg.src = '';
+            }
         }
     }
 

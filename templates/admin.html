@@ -45,12 +45,12 @@
             font-weight: normal;
         }
 
-        /* 📌 เพิ่มใหม่: สไตล์กล่องแสดงรูปภาพโจทย์ */
+        /* 📌 สไตล์กล่องแสดงรูปภาพโจทย์ */
         .question-image-box {
             margin-top: 12px;
             text-align: center;
             width: 100%;
-            display: none; /* ซ่อนไว้ก่อน ถ้ามีรูปค่อยเปิดด้วย JS */
+            display: none;
         }
         .question-image-box img {
             max-width: 100%;
@@ -131,7 +131,7 @@
             max-width: 95% !important;
         }
 
-        /* 📌 เพิ่มใหม่: ปรับขนาดรูปภาพโจทย์ตอน Fullscreen ให้ใหญ่สะใจอ่านง่าย */
+        /* 📌 ปรับขนาดรูปภาพโจทย์ตอน Fullscreen ให้ใหญ่สะใจอ่านง่าย */
         #fullscreen-target:fullscreen .question-image-box {
             display: block !important;
             margin: 10px 0 20px 0 !important;
@@ -209,7 +209,7 @@
     <button onclick="openScoreModal()" class="btn btn-purple">📊 กดดูตารางคะแนน (View Scores)</button>
     
     <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
-    <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกม (Reset All)</button>
+    <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกมทั้งหมด (Reset All)</button>
 </div>
 
 <div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
@@ -361,20 +361,14 @@
         countdownInterval = setInterval(runCountdown, 1000);
     }
 
+    /* 📌 ปรับปรุงใหม่: เปลี่ยนให้ส่งคำสั่งหยุด/เล่นต่อ ไปทำงานที่หลังบ้านแบบ Real-time ร่วมกับห้องผู้เล่น */
     function pauseTimer() {
-        isPaused = true;
-        document.getElementById('btn-pause').style.display = 'none';
-        document.getElementById('btn-resume').style.display = 'block';
-        updateTimerDisplay();
+        controlGame('/api/pause');
     }
 
-    function runResumeTimer() { // แก้ชื่อฟังก์ชันให้ไม่ชนกับปุ่มหรือเรียกใช้จากภายนอก
-        isPaused = false;
-        document.getElementById('btn-pause').style.display = 'block';
-        document.getElementById('btn-resume').style.display = 'none';
-        updateTimerDisplay();
+    function runResumeTimer() { 
+        controlGame('/api/resume');
     }
-    // คืนค่าฟังก์ชันเดิมที่ผูกไว้กับ onclick="resumeTimer()"
     window.resumeTimer = runResumeTimer;
 
     function openScoreModal() { 
@@ -413,7 +407,6 @@
         const statsBox = document.getElementById('stats-box');
         const timerSettingContainer = document.getElementById('timer-setting-container');
         
-        // 📌 ประกาศตัวแปรกล่องรูปภาพที่เพิ่มเข้ามาใหม่
         const questionImgBox = document.getElementById('question-image-box');
         const questionImg = document.getElementById('question-image');
 
@@ -431,6 +424,15 @@
                 document.getElementById('btn-timeout').style.display = 'block';
                 document.getElementById('btn-next').style.display = 'none';
                 timerControlGroup.style.display = 'flex';
+
+                /* 📌 ซิงค์สถานะการเปิด/ปิดปุ่ม Pause-Resume ตามค่าที่ส่งมาจากเซิร์ฟเวอร์ */
+                if (data.is_paused) {
+                    document.getElementById('btn-pause').style.display = 'none';
+                    document.getElementById('btn-resume').style.display = 'block';
+                } else {
+                    document.getElementById('btn-pause').style.display = 'block';
+                    document.getElementById('btn-resume').style.display = 'none';
+                }
             }
         } else {
             document.getElementById('btn-start').style.display = 'block';
@@ -444,10 +446,27 @@
             lastQuestionNumber = 0;
         }
 
+        /* 📌 ปรับปรุงใหม่: ดึงเวลาและสถานะหยุดเวลาจากเซิร์ฟเวอร์มาป้องกันบั๊กเวลากระโดดเมื่อเปิดแท็บใหม่/รีเฟรชหน้า */
         if (data.is_started && !data.is_time_up && !data.is_end) {
+            isPaused = data.is_paused || false;
+
             if (data.current_number !== lastQuestionNumber) {
                 lastQuestionNumber = data.current_number;
-                startTimer(true);
+                if (data.time_left !== undefined) {
+                    timeLeft = data.time_left;
+                } else {
+                    const customTime = parseInt(document.getElementById('custom-time-input').value);
+                    timeLeft = !isNaN(customTime) && customTime > 0 ? customTime : 120;
+                }
+            } else {
+                if (data.time_left !== undefined) {
+                    timeLeft = data.time_left;
+                }
+            }
+            updateTimerDisplay();
+
+            if (!countdownInterval) {
+                countdownInterval = setInterval(runCountdown, 1000);
             }
         }
 
@@ -468,24 +487,26 @@
             statsBox.style.display = 'none';
         }
 
-        // 📌 ปรับปรุงการจัดการกล่องข้อความโจทย์ และ อัปเดตการแสดงผลรูปภาพ
         if (!data.is_started) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> ยังไม่เริ่มเกม';
             questionLabel.innerText = 'โจทย์ปัจจุบัน:';
             questionInfo.innerText = 'รอแอดมินกดเริ่มเกม';
             questionInfo.style.textAlign = 'center';
             questionInfo.style.fontWeight = 'bold';
-            questionImgBox.style.display = 'none'; // ซ่อนรูปเมื่อยังไม่เริ่มเกม
+            questionImgBox.style.display = 'none';
         } else if (data.is_end) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
             questionLabel.innerText = 'โจทย์ปัจจุบัน:';
             questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
             questionInfo.style.textAlign = 'center';
             questionInfo.style.fontWeight = 'bold';
-            questionImgBox.style.display = 'none'; // ซ่อนรูปเมื่อจบการแข่งขัน
+            questionImgBox.style.display = 'none';
         } else {
+            /* 📌 ปรับปรุงใหม่: เพิ่มเงื่อนไขจุดไฟสีเหลืองกะพริบแจ้งเตือนสถานะเมื่อกด Pause */
             if (data.is_time_up) {
                 statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
+            } else if (data.is_paused) {
+                statusText.innerHTML = '<span class="status-dot dot-yellow"></span> หยุดเวลาชั่วคราว';
             } else {
                 statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
             }
@@ -494,7 +515,6 @@
             questionInfo.style.textAlign = 'left';
             questionInfo.style.fontWeight = 'normal';
 
-            // 📌 ส่วนเช็คและแสดงรูปภาพโจทย์ (ส่งลิงก์รูปภาพผ่านคีย์ image_url)
             if (data.image_url && data.image_url.trim() !== "") {
                 questionImg.src = data.image_url;
                 questionImgBox.style.display = 'block';

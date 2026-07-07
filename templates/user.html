@@ -92,7 +92,7 @@
             margin-bottom: 25px;
         }
         .input-group {
-            margin-bottom: 15px; /* ปรับ margin เพื่อเว้นที่ให้ Live Preview */
+            margin-bottom: 15px;
         }
         input[type="text"] {
             width: 100%;
@@ -109,7 +109,13 @@
             outline: none;
         }
         
-        /* 📌 สไตล์สำหรับกล่องแสดงผลสมการคณิตศาสตร์ (Live Preview) */
+        /* 📌 ปรับแต่งพิเศษสำหรับ Input ที่ทำหน้าที่ Autocomplete หาโรงเรียน */
+        #team-input {
+            font-size: 18px;
+            padding: 15px;
+            text-align: left; /* เปลี่ยนเป็นชิดซ้ายเพื่อให้อ่านชื่อโรงเรียนยาวๆ ได้ง่ายขึ้น */
+        }
+        
         .math-preview-box {
             background-color: #f8f9fa;
             border: 1px dashed #ced4da;
@@ -200,9 +206,24 @@
         <h2 style="margin-top: 0;">ตั้งชื่อทีม / โรงเรียน</h2>
         <p style="color: #6c757d; font-size: 16px; margin-bottom: 20px;">กรุณาระบุชื่อโรงเรียนหรือสังกัดของคุณ<br>เพื่อใช้ในการบันทึกคะแนนรวม</p>
         <div class="input-group">
-            <input type="text" id="team-input" placeholder="พิมพ์ชื่อโรงเรียนที่นี่..." autocomplete="off">
+            <input type="text" id="team-input" list="school-list" placeholder="🔍 พิมพ์ค้นหา หรือคลิกเพื่อเลือกโรงเรียน..." autocomplete="off">
+            
+            <datalist id="school-list">
+                <option value="โรงเรียนสุราษฎร์ธานี">
+                <option value="โรงเรียนสุราษฎร์พิทยา">
+                <option value="โรงเรียนเมืองสุราษฎร์ธานี">
+                <option value="โรงเรียนพุนพินพิทยาคม">
+                <option value="โรงเรียนเกาะสมุย">
+                <option value="โรงเรียนกาญจนาภิเษกวิทยาลัย สุราษฎร์ธานี">
+                <option value="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย">
+                <option value="โรงเรียนเตรียมอุดมศึกษา">
+                <option value="โรงเรียนมหิดลวิทยานุสรณ์">
+                <option value="โรงเรียนสวนกุหลาบวิทยาลัย">
+                <option value="โรงเรียนสามเสนวิทยาลัย">
+                <option value="โรงเรียนบดินทรเดชา (สิงห์ สิงหเสนี)">
+            </datalist>
         </div>
-        <button onclick="saveTeamName()" class="btn btn-blue">บันทึกชื่อทีม</button>
+        <button onclick="saveTeamName()" class="btn btn-blue" style="margin-top: 10px;">บันทึกชื่อทีม</button>
     </div>
 
     <div id="waiting-screen" class="waiting-box" style="display: none;">
@@ -244,7 +265,6 @@
     let teamName = localStorage.getItem('quiz_team_name');
     let gamePollingInterval = null;
 
-    // 📌 ฟังก์ชันสำหรับแปลงข้อความให้เป็นสมการคณิตศาสตร์แบบเรียลไทม์
     function renderMathPreview() {
         const inputStr = document.getElementById('answer-input').value;
         const previewBox = document.getElementById('math-preview');
@@ -254,10 +274,8 @@
             return;
         }
 
-        // วางข้อความที่พิมพ์ลงไปในกล่อง Preview
         previewBox.innerText = inputStr;
 
-        // สั่งให้ MathJax ทำการเรนเดอร์ใหม่ในกล่อง Preview
         if (window.MathJax) {
             MathJax.typesetPromise([previewBox]).catch(function (err) {
                 console.warn("MathJax Error: ", err.message);
@@ -330,7 +348,7 @@
                 waitingScreen.style.display = 'block';
                 quizScreen.style.display = 'none';
                 answerInput.value = '';
-                renderMathPreview(); // เคลียร์ Preview
+                renderMathPreview(); 
                 answerInput.disabled = false;
                 resultMsg.innerText = '';
                 submitBtn.disabled = false;
@@ -348,7 +366,7 @@
                 hasSubmittedThisQuestion = false; 
                 
                 answerInput.value = ''; 
-                renderMathPreview(); // เคลียร์ Preview เมื่อขึ้นข้อใหม่
+                renderMathPreview(); 
                 answerInput.disabled = false;
                 submitBtn.disabled = false;
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';

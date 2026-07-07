@@ -1,6 +1,6 @@
 import os
 import json
-import time  # 📌 นำเข้าโมดูล time สำหรับระบบนับคนออนไลน์
+import time  
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -10,28 +10,29 @@ app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
-# 📌 ตัวแปรเก็บเวลาล่าสุดที่ผู้เล่นแต่ละคน (user) มีการดึงข้อมูล
 active_users_memory = {}
 
+# 📌 เพิ่มตัวแปรสำหรับเซฟโจทย์
+QUESTIONS_FILE = "/tmp/questions.json"
+DB_FILE = "/tmp/game_database.json"
+
+# โจทย์เริ่มต้น (กรณีที่ยังไม่มีการอัปโหลด)
 questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10"},
     {"q": "1 + 1 เท่ากับเท่าไร?", "a": "2"},
-    {"q": "7 + 7 เท่ากับเท่าไร?", "a": "14"},
-    {"q": "2 + 2 เท่ากับเท่าไร?", "a": "4"},
-    {"q": "9 + 9 เท่ากับเท่าไร?", "a": "18"},
-    {"q": "6 + 7 เท่ากับเท่าไร?", "a": "13"},
-    {"q": "6 + 6 เท่ากับเท่าไร?", "a": "12"},
-    {"q": "4 + 4 เท่ากับเท่าไร?", "a": "8"},
-    {"q": "9 + 5 เท่ากับเท่าไร?", "a": "14"},   
-    {"q": "8 + 8 เท่ากับเท่าไร?", "a": "16"},
-    {"q": "3 + 3 เท่ากับเท่าไร?", "a": "6"},
-    {"q": "5 + 4 เท่ากับเท่าไร?", "a": "9"},
-    {"q": "10 + 10 เท่ากับเท่าไร?", "a": "20"},
-    {"q": "12 + 12 เท่ากับเท่าไร?", "a": "24"},
-    {"q": "15 + 15 เท่ากับเท่าไร?", "a": "30"}
+    {"q": "7 + 7 เท่ากับเท่าไร?", "a": "14"}
 ]
 
-DB_FILE = "/tmp/game_database.json"
+# 📌 ฟังก์ชันโหลดโจทย์ที่แอดมินเคยอัปโหลดไว้
+if os.path.exists(QUESTIONS_FILE):
+    try:
+        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+            loaded_questions = json.load(f)
+            if isinstance(loaded_questions, list) and len(loaded_questions) > 0:
+                questions = loaded_questions
+    except Exception as e:
+        print("Error loading questions file:", e)
+
 
 DEFAULT_STATE = {
     "is_started": False,
@@ -62,10 +63,9 @@ def save_db(data):
 def is_correct(ans1, ans2):
     return str(ans1).replace(" ", "").lower() == str(ans2).replace(" ", "").lower()
 
-# 🌟 ฟังก์ชันคำนวณคะแนนโบนัสทีม (ตามโจทย์: 3 คน=5 แต้ม, 2 คน=3 แต้ม)
 def calculate_team_points(correct_count):
-    sets_of_three = correct_count // 3  # จับกลุ่มทีละ 3 คน
-    remainder = correct_count % 3       # เศษที่เหลือ
+    sets_of_three = correct_count // 3
+    remainder = correct_count % 3
     
     points = sets_of_three * 5
     if remainder == 2:
@@ -74,16 +74,14 @@ def calculate_team_points(correct_count):
         points += 1
     return points
 
-# 📌 ฟังก์ชันดึงจำนวนผู้เล่นที่กำลังออนไลน์ (ภายใน 10 วินาทีล่าสุด)
 def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
 
 # ==========================================
-# 🏠 เส้นทางหลัก (Routing Pages)
+# 🏠 เส้นทางหลัก & ระบบล็อกอิน
 # ==========================================
-
 @app.route('/')
 def index():
     if 'role' not in session:
@@ -106,11 +104,6 @@ def admin_dashboard():
 def logout():
     session.clear()
     return redirect(url_for('login_page'))
-
-
-# ==========================================
-# 🔐 ระบบยืนยันตัวตน (Authentication)
-# ==========================================
 
 @app.route('/api/google-login', methods=['POST'])
 def google_login():
@@ -140,6 +133,35 @@ def google_login():
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
 
+# 📌 [ใหม่] API สำหรับอัปโหลดโจทย์
+@app.route('/api/upload-questions', methods=['POST'])
+def upload_questions():
+    if session.get('role') != 'admin':
+        return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
+        
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        return jsonify({"status": "error", "message": "ไม่ได้เลือกไฟล์"}), 400
+        
+    try:
+        new_qs = json.load(file)
+        if not isinstance(new_qs, list) or len(new_qs) == 0 or "q" not in new_qs[0]:
+            return jsonify({"status": "error", "message": "รูปแบบไฟล์ไม่ถูกต้อง โครงสร้างต้องเป็น List of dicts"}), 400
+            
+        global questions
+        questions = new_qs
+        
+        # บันทึกลงไฟล์เพื่อใช้ครั้งต่อไป
+        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(questions, f, ensure_ascii=False, indent=4)
+            
+        # รีเซ็ตเกมเพื่อเริ่มชุดโจทย์ใหม่
+        save_db(DEFAULT_STATE)
+        
+        return jsonify({"status": "success", "message": f"อัปโหลดสำเร็จ {len(questions)} ข้อ และรีเซ็ตระบบแล้ว"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
+
 @app.route('/api/start', methods=['POST'])
 def start_game():
     if session.get('role') != 'admin':
@@ -160,7 +182,7 @@ def start_game():
             "current_number": 1, "question": questions[0]["q"], "answer": questions[0]["a"],
             "correct_count": 0, "incorrect_count": 0,
             "school_scores": db["school_scores"],
-            "active_users_count": get_active_users_count() # 📌 แนบไปตอนเริ่มเกม
+            "active_users_count": get_active_users_count()
         }
     })
 
@@ -168,7 +190,6 @@ def start_game():
 def get_state():
     db = load_db()
     
-    # 📌 บันทึกเวลาปัจจุบันของผู้ใช้ (ถ้าเป็นผู้เล่น)
     email = session.get('email')
     if email and session.get('role') == 'user':
         active_users_memory[email] = time.time()
@@ -188,7 +209,6 @@ def get_state():
         current_q = questions[current_idx]["q"]
         correct_ans = questions[current_idx]["a"]
         
-        # 📌 นับจำนวนตอบถูก/ผิด ตลอดเวลาเพื่อดึงไปแสดงผล
         for p_email, player_data in db.get("current_answers", {}).items():
             if is_correct(player_data.get("answer"), correct_ans):
                 correct_count += 1
@@ -205,7 +225,7 @@ def get_state():
         "correct_count": correct_count,
         "incorrect_count": incorrect_count,
         "school_scores": db["school_scores"],
-        "active_users_count": get_active_users_count() # 📌 แนบไปกับ API state
+        "active_users_count": get_active_users_count()
     })
 
 @app.route('/api/timeout', methods=['POST'])
@@ -227,27 +247,23 @@ def trigger_timeout():
         correct_answer = questions[current_idx]["a"]
         school_correct_counts = {}
         
-        # นับจำนวนคนที่ตอบถูกในแต่ละโรงเรียนสำหรับข้อนี้ และรวมยอดสำหรับแสดงผล
         for email, player_data in list(db["current_answers"].items()):
             is_ans_correct = is_correct(player_data["answer"], correct_answer)
             
-            # 📌 นับรวม
             if is_ans_correct:
                 correct_count += 1
             else:
                 incorrect_count += 1
             
-            # 📌 คำนวณคะแนนเฉพาะคนที่ยังไม่ได้คิดคะแนน
             if not player_data.get("evaluated", False):
                 school = player_data["school"] or "ไม่ระบุสังกัด"
                 
                 if is_ans_correct:
                     school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
-                    db["player_scores"][email] = db["player_scores"].get(email, 0) + 1 # ผู้เล่นรายคนยังได้ +1 เสมอ
+                    db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
                 
                 player_data["evaluated"] = True
                 
-        # นำจำนวนคนที่ตอบถูกมาคำนวณและบวกเข้าคะแนนทีม
         for school, count in school_correct_counts.items():
             if school not in db["school_scores"]:
                 db["school_scores"][school] = 0
@@ -266,7 +282,7 @@ def trigger_timeout():
             "current_number": current_idx + 1, "question": current_q, "answer": correct_ans,
             "correct_count": correct_count, "incorrect_count": incorrect_count,
             "school_scores": db["school_scores"],
-            "active_users_count": get_active_users_count() # 📌
+            "active_users_count": get_active_users_count()
         }
     })
 
@@ -281,7 +297,6 @@ def next_question():
         
     current_idx = db["current_index"]
     
-    # ประมวลผลเก็บตกคะแนน (กรณีที่แอดมินกด Next เลยโดยไม่ได้กด Timeout)
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
         school_correct_counts = {}
@@ -311,7 +326,7 @@ def next_question():
                 "current_number": current_idx + 1, "question": "", "answer": "-",
                 "correct_count": 0, "incorrect_count": 0,
                 "school_scores": db["school_scores"],
-                "active_users_count": get_active_users_count() # 📌
+                "active_users_count": get_active_users_count()
             }
         })
 
@@ -329,7 +344,7 @@ def next_question():
             "current_number": db["current_index"] + 1, "question": next_q, "answer": next_a,
             "correct_count": 0, "incorrect_count": 0,
             "school_scores": db["school_scores"],
-            "active_users_count": get_active_users_count() # 📌
+            "active_users_count": get_active_users_count()
         }
     })
 
@@ -346,7 +361,7 @@ def reset_game():
             "current_number": 1, "question": "รอแอดมินกดเริ่มเกม", "answer": "-",
             "correct_count": 0, "incorrect_count": 0,
             "school_scores": {},
-            "active_users_count": get_active_users_count() # 📌
+            "active_users_count": get_active_users_count()
         }
     })
 
@@ -373,9 +388,7 @@ def submit_answer():
         "evaluated": False
     }
     
-    # 📌 อัปเดตสถานะว่าเพิ่งส่งคำตอบ = เพิ่งออนไลน์
     active_users_memory[email] = time.time()
-    
     save_db(db)
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
 

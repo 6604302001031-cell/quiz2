@@ -109,11 +109,12 @@
             outline: none;
         }
         
-        /* 📌 ปรับแต่งพิเศษสำหรับ Input ที่ทำหน้าที่ Autocomplete หาโรงเรียน */
-        #team-input {
-            font-size: 18px;
-            padding: 15px;
-            text-align: left; /* เปลี่ยนเป็นชิดซ้ายเพื่อให้อ่านชื่อโรงเรียนยาวๆ ได้ง่ายขึ้น */
+        /* 📌 สไตล์สำหรับช่องกรอกข้อมูลตั้งค่าทีม/โรงเรียน */
+        .setup-input {
+            font-size: 18px !important;
+            padding: 15px !important;
+            text-align: left !important;
+            margin-bottom: 12px;
         }
         
         .math-preview-box {
@@ -204,26 +205,33 @@
     <div id="setup-screen" class="waiting-box" style="display: none;">
         <div style="font-size: 50px; margin-bottom: 15px;">🏫</div>
         <h2 style="margin-top: 0;">ตั้งชื่อทีม / โรงเรียน</h2>
-        <p style="color: #6c757d; font-size: 16px; margin-bottom: 20px;">กรุณาระบุชื่อโรงเรียนหรือสังกัดของคุณ<br>เพื่อใช้ในการบันทึกคะแนนรวม</p>
+        <p style="color: #6c757d; font-size: 15px; margin-bottom: 20px;">กรุณาเลือกจังหวัด และระบุชื่อโรงเรียนของคุณ</p>
+        
         <div class="input-group">
-            <input type="text" id="team-input" list="school-list" placeholder="🔍 พิมพ์ค้นหา หรือคลิกเพื่อเลือกโรงเรียน..." autocomplete="off">
+            <input type="text" id="province-input" class="setup-input" list="province-list" placeholder="🔍 พิมพ์ค้นหา หรือคลิกเพื่อเลือกจังหวัด..." autocomplete="off">
             
-            <datalist id="school-list">
-                <option value="โรงเรียนสุราษฎร์ธานี">
-                <option value="โรงเรียนสุราษฎร์พิทยา">
-                <option value="โรงเรียนเมืองสุราษฎร์ธานี">
-                <option value="โรงเรียนพุนพินพิทยาคม">
-                <option value="โรงเรียนเกาะสมุย">
-                <option value="โรงเรียนกาญจนาภิเษกวิทยาลัย สุราษฎร์ธานี">
-                <option value="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย">
-                <option value="โรงเรียนเตรียมอุดมศึกษา">
-                <option value="โรงเรียนมหิดลวิทยานุสรณ์">
-                <option value="โรงเรียนสวนกุหลาบวิทยาลัย">
-                <option value="โรงเรียนสามเสนวิทยาลัย">
-                <option value="โรงเรียนบดินทรเดชา (สิงห์ สิงหเสนี)">
+            <input type="text" id="school-input" class="setup-input" placeholder="🏫 พิมพ์ชื่อโรงเรียนของคุณ..." autocomplete="off">
+            
+            <datalist id="province-list">
+                <option value="กรุงเทพมหานคร"><option value="กระบี่"><option value="กาญจนบุรี"><option value="กาฬสินธุ์"><option value="กำแพงเพชร">
+                <option value="ขอนแก่น"><option value="จันทบุรี"><option value="ฉะเชิงเทรา"><option value="ชลบุรี"><option value="ชัยนาท">
+                <option value="ชัยภูมิ"><option value="ชุมพร"><option value="เชียงราย"><option value="เชียงใหม่"><option value="ตรัง">
+                <option value="ตราด"><option value="ตาก"><option value="นครนายก"><option value="นครปฐม"><option value="นครพนม">
+                <option value="นครราชสีมา"><option value="นครศรีธรรมราช"><option value="นครสวรรค์"><option value="นนทบุรี"><option value="นราธิวาท">
+                <option value="น่าน"><option value="บึงกาฬ"><option value="บุรีรัมย์"><option value="ปทุมธานี"><option value="ประจวบคีรีขันธ์">
+                <option value="ปราจีนบุรี"><option value="ปัตตานี"><option value="พระนครศรีอยุธยา"><option value="พะเยา"><option value="พังงา">
+                <option value="พัทลุง"><option value="พิจิตร"><option value="พิษณุโลก"><option value="เพชรบุรี"><option value="เพชรบูรณ์">
+                <option value="แพร่"><option value="ภูเก็ต"><option value="มหาสารคาม"><option value="มุกดาหาร"><option value="แม่ฮ่องสอน">
+                <option value="ยโสธร"><option value="ยะลา"><option value="ร้อยเอ็ด"><option value="ระนอง"><option value="ระยอง">
+                <option value="ราชบุรี"><option value="ลพบุรี"><option value="ลำปาง"><option value="ลำพูน"><option value="เลย">
+                <option value="ศรีสะเกษ"><option value="สกลนคร"><option value="สงขลา"><option value="สตูล"><option value="สมุทรปราการ">
+                <option value="สมุทรสงคราม"><option value="สมุทรสาคร"><option value="สระแก้ว"><option value="สระบุรี"><option value="สิงห์บุรี">
+                <option value="สุโขทัย"><option value="สุพรรณบุรี"><option value="สุราษฎร์ธานี"><option value="สุรินทร์"><option value="หนองคาย">
+                <option value="หนองบัวลำภู"><option value="อ่างทอง"><option value="อำนาจเจริญ"><option value="อุดรธานี"><option value="อุตรดิตถ์">
+                <option value="อุทัยธานี"><option value="อุบลราชธานี">
             </datalist>
         </div>
-        <button onclick="saveTeamName()" class="btn btn-blue" style="margin-top: 10px;">บันทึกชื่อทีม</button>
+        <button onclick="saveTeamName()" class="btn btn-blue" style="margin-top: 5px;">บันทึกชื่อทีม</button>
     </div>
 
     <div id="waiting-screen" class="waiting-box" style="display: none;">
@@ -306,19 +314,32 @@
         }
     }
 
+    // 📌 ปรับปรุงฟังก์ชันการบันทึกเพื่อมัดรวม ชื่อโรงเรียน + จังหวัด เข้าด้วยกัน
     function saveTeamName() {
-        const inputVal = document.getElementById('team-input').value.trim();
-        if (inputVal.length < 2) {
-            alert('กรุณากรอกชื่อโรงเรียนหรือชื่อทีมอย่างน้อย 2 ตัวอักษรครับ');
+        const provinceVal = document.getElementById('province-input').value.trim();
+        const schoolVal = document.getElementById('school-input').value.trim();
+        
+        if (!provinceVal) {
+            alert('กรุณาเลือกหรือระบุจังหวัดของคุณก่อนครับ');
             return;
         }
-        teamName = inputVal;
+        if (schoolVal.length < 2) {
+            alert('กรุณากรอกชื่อโรงเรียนอย่างน้อย 2 ตัวอักษรครับ');
+            return;
+        }
+        
+        // มัดรวมข้อมูลส่งต่อไปยัง Backend ในโครงสร้างเดิม
+        teamName = `${schoolVal} (${provinceVal})`;
         localStorage.setItem('quiz_team_name', teamName); 
         initPlayer(); 
     }
 
-    document.getElementById('team-input').addEventListener('keypress', function(e) {
+    // เปิดให้กด Enter ในช่องกรอกเพื่อบันทึกชื่อได้ทันที
+    document.getElementById('school-input').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') saveTeamName();
+    });
+    document.getElementById('province-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') document.getElementById('school-input').focus();
     });
 
     function fetchMyScore() {

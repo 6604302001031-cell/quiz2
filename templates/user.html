@@ -204,12 +204,12 @@
     <div id="setup-screen" class="waiting-box" style="display: none;">
         <div style="font-size: 50px; margin-bottom: 15px;">🏫</div>
         <h2 style="margin-top: 0;">ตั้งชื่อทีม / โรงเรียน</h2>
-        <p style="color: #6c757d; font-size: 15px; margin-bottom: 20px;">กรุณาเลือกจังหวัดก่อน เพื่อแสดงรายชื่อโรงเรียน</p>
+        <p style="color: #6c757d; font-size: 15px; margin-bottom: 20px;">เลือกจังหวัดเพื่อดึงรายชื่อโรงเรียนทั้งหมดแบบอัตโนมัติ</p>
         
         <div class="input-group">
             <input type="text" id="province-input" class="setup-input" list="province-list" placeholder="🔍 ขั้นตอนที่ 1: พิมพ์เลือกจังหวัด..." autocomplete="off" oninput="updateSchoolList()">
             
-            <input type="text" id="school-input" class="setup-input" list="school-list" placeholder="🏫 ขั้นตอนที่ 2: เลือกหรือพิมพ์ชื่อโรงเรียน..." autocomplete="off" disabled>
+            <input type="text" id="school-input" class="setup-input" list="school-list" placeholder="❌ กรุณาเลือกจังหวัดก่อน..." autocomplete="off" disabled>
             
             <datalist id="province-list">
                 <option value="กรุงเทพมหานคร"><option value="กระบี่"><option value="กาญจนบุรี"><option value="กาฬสินธุ์"><option value="กำแพงเพชร">
@@ -274,40 +274,7 @@
     let teamName = localStorage.getItem('quiz_team_name');
     let gamePollingInterval = null;
 
-    // 📌 ฐานข้อมูลรายชื่อโรงเรียน (สามารถมาเพิ่มชื่อโรงเรียนที่ต้องการให้ค้นหาเจอที่ตรงนี้ได้เลยครับ)
-    const schoolsData = {
-        "กรุงเทพมหานคร": [
-            "โรงเรียนเตรียมอุดมศึกษา", "โรงเรียนสวนกุหลาบวิทยาลัย", "โรงเรียนสามเสนวิทยาลัย", 
-            "โรงเรียนบดินทรเดชา (สิงห์ สิงหเสนี)", "โรงเรียนสตรีวิทยา", "โรงเรียนเทพศิรินทร์", "โรงเรียนหอวัง"
-        ],
-        "สุราษฎร์ธานี": [
-            "โรงเรียนสุราษฎร์ธานี", "โรงเรียนสุราษฎร์พิทยา", "โรงเรียนเมืองสุราษฎร์ธานี", 
-            "โรงเรียนพุนพินพิทยาคม", "โรงเรียนกาญจนาภิเษกวิทยาลัย สุราษฎร์ธานี", "โรงเรียนเกาะสมุย"
-        ],
-        "เชียงใหม่": [
-            "โรงเรียนยุพราชวิทยาลัย", "โรงเรียนเชียงใหม่คริสเตียน", "โรงเรียนปรินส์รอยแยลส์วิทยาลัย", 
-            "โรงเรียนมงฟอร์ตวิทยาลัย", "โรงเรียนวัฒโนทัยพายัพ"
-        ],
-        "ขอนแก่น": [
-            "โรงเรียนขอนแก่นวิทยายน", "โรงเรียนกัลยาณวัตร", "โรงเรียนสาธิตมหาวิทยาลัยขอนแก่น", 
-            "------------- โรงเรียนอื่นๆ สามารถพิมพ์ชื่อเองได้เลย -------------"
-        ],
-        "นครปฐม": [
-            "โรงเรียนมหิดลวิทยานุสรณ์", "โรงเรียนพระปฐมวิทยาลัย", "โรงเรียนราชินีบูรณะ"
-        ],
-        "ชลบุรี": [
-            "โรงเรียนชลราษฎรอำรุง", "โรงเรียนชลกันยานุกูล", "โรงเรียนสาธิตพิบูลบำเพ็ญ"
-        ],
-        "นครราชสีมา": [
-            "โรงเรียนราชสีมาวิทยาลัย", "โรงเรียนสุรนารีวิทยา", "โรงเรียนบุญวัฒนา"
-        ],
-        "สงขลา": [
-            "โรงเรียนหาดใหญ่วิทยาลัย", "โรงเรียนหาดใหญ่วิทยาลัยสมบูรณ์กุลกันยา", "โรงเรียนมหาวชิราวุธ"
-        ]
-        // 💡 ถ้ามีโรงเรียนจังหวัดอื่นๆ เพิ่มเติม สามารถใส่เพิ่มตรงนี้ในโครงสร้าง "ชื่อจังหวัด": ["โรงเรียน1", "โรงเรียน2"] ได้เลยครับ
-    };
-
-    // 📌 ฟังก์ชันจัดการอัปเดตรายชื่อโรงเรียนแบบไดนามิกตามจังหวัดที่เลือก
+    // 📌 ฟังก์ชันดึงรายชื่อโรงเรียนจากเซิร์ฟเวอร์แบบ Dynamic Real-time
     function updateSchoolList() {
         const provinceInput = document.getElementById('province-input');
         const schoolInput = document.getElementById('school-input');
@@ -315,30 +282,43 @@
         
         const selectedProvince = provinceInput.value.trim();
         
-        // ล้างข้อมูลเก่าในลิสต์โรงเรียนทิ้งก่อน
+        // ล้างตัวเลือกเก่าออกก่อนทุกครั้ง
         schoolDatalist.innerHTML = '';
         
-        // ตรวจสอบว่าจังหวัดที่พิมพ์/เลือก มีในฐานข้อมูลของเราหรือไม่
-        if (schoolsData[selectedProvince]) {
-            // ดึงรายชื่อโรงเรียนของจังหวัดนั้นๆ มาสร้างเป็นตัวเลือก <option>
-            schoolsData[selectedProvince].forEach(school => {
-                const option = document.createElement('option');
-                option.value = school;
-                schoolDatalist.appendChild(option);
-            });
-            
-            schoolInput.disabled = false;
-            schoolInput.placeholder = "🏫 พิมพ์หรือเลือกชื่อโรงเรียน...";
-        } else if (selectedProvince !== "") {
-            // ถ้าเลือกจังหวัดที่ไม่มีในฐานข้อมูลตัวอย่าง (เปิดให้พิมพ์ชื่อโรงเรียนอิสระได้เลย)
-            schoolInput.disabled = false;
-            schoolInput.placeholder = "🏫 พิมพ์ชื่อโรงเรียนของคุณที่นี่...";
-        } else {
-            // ถ้ายังไม่ได้กรอกจังหวัด ให้ล็อคช่องเลือกโรงเรียนไว้ก่อน
+        if (!selectedProvince) {
             schoolInput.disabled = true;
             schoolInput.value = '';
             schoolInput.placeholder = "❌ กรุณาเลือกจังหวัดก่อน...";
+            return;
         }
+        
+        schoolInput.placeholder = "⏳ กำลังโหลดรายชื่อโรงเรียนในจังหวัด...";
+        schoolInput.disabled = true;
+
+        // ดึงรายชื่อโรงเรียนทั้งหมดของจังหวัดนั้นๆ ผ่าน API หลังบ้าน
+        fetch(`/api/schools?province=${encodeURIComponent(selectedProvince)}`)
+        .then(res => res.json())
+        .then(schools => {
+            if (schools && schools.length > 0) {
+                schools.forEach(school => {
+                    const option = document.createElement('option');
+                    option.value = school;
+                    schoolDatalist.appendChild(option);
+                });
+                schoolInput.disabled = false;
+                schoolInput.placeholder = "🏫 พิมพ์ค้นหาหรือเลือกโรงเรียนของคุณ...";
+            } else {
+                // กรณีพิมพ์จังหวัดแปลกๆ หรือไม่พบข้อมูลในระบบ ให้เปิดสิทธิ์ให้ผู้เล่นพิมพ์ชื่อเองได้อย่างอิสระ
+                schoolInput.disabled = false;
+                schoolInput.placeholder = "🏫 พิมพ์ชื่อโรงเรียนของคุณเองได้เลย...";
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching schools:', err);
+            // กรณีระบบขัดข้อง สำรองข้อมูลให้พิมพ์มือเองได้ เพื่อไม่ให้ระบบล่มหน้างาน
+            schoolInput.disabled = false;
+            schoolInput.placeholder = "🏫 พิมพ์ชื่อโรงเรียนของคุณเองได้เลย...";
+        });
     }
 
     function renderMathPreview() {
@@ -390,12 +370,11 @@
             alert('กรุณาเลือกหรือระบุจังหวัดของคุณก่อนครับ');
             return;
         }
-        if (schoolVal.length < 2 || schoolVal.includes("---")) {
+        if (schoolVal.length < 2) {
             alert('กรุณากรอกหรือเลือกชื่อโรงเรียนที่ถูกต้องอย่างน้อย 2 ตัวอักษรครับ');
             return;
         }
         
-        // รวมร่างส่งข้อมูล: "โรงเรียนพุนพินพิทยาคม (สุราษฎร์ธานี)"
         teamName = `${schoolVal} (${provinceVal})`;
         localStorage.setItem('quiz_team_name', teamName); 
         initPlayer(); 

@@ -19,6 +19,10 @@
         .dot-red { background-color: #f44336; }
         .dot-yellow { background-color: #f1c40f; }
         .timer-box { background-color: #fff9db; border: 1px solid #ffe3e3; padding: 12px; border-radius: 6px; font-size: 22px; font-weight: bold; color: #d9480f; text-align: center; margin-top: 15px; }
+        
+        /* 🎯 สไตล์กล่องเฉลยคำตอบในเวลาปกติ */
+        .answer-box { background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; font-size: 20px; font-weight: bold; color: #155724; text-align: center; margin-top: 15px; display: none; }
+
         .btn { font-size: 16px; padding: 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 12px; }
         .btn:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; opacity: 0.7; }
         .btn-orange { background-color: #ff9800; color: white; }
@@ -36,9 +40,9 @@
         .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
         .score-table th { background-color: #f1f3f5; }
 
-        /* 🖥️ สไตล์สำหรับจัดการสถานะ Fullscreen */
-        .show-on-fullscreen { display: none; } /* ปกติซ่อนปุ่มยกเลิกไว้ */
+        .show-on-fullscreen { display: none; } 
 
+        /* 🖥️ สไตล์เมื่อเปิดโหมด Fullscreen */
         #fullscreen-target:fullscreen {
             background-color: #ffffff !important;
             display: flex !important;
@@ -51,27 +55,34 @@
             height: 100% !important;
             border: none !important;
         }
-        /* ควบคุมการแสดงผลสิ่งของในโหมดเต็มจอ */
         #fullscreen-target:fullscreen .hide-on-fullscreen { display: none !important; }
         #fullscreen-target:fullscreen .show-on-fullscreen { display: block !important; }
         
-        /* ขยายตัวหนังสือโจทย์เมื่อเต็มจอ */
         #fullscreen-target:fullscreen #question-info {
             font-size: 46px !important;
             color: #111111 !important;
             text-align: center !important;
             line-height: 1.6 !important;
-            margin: auto 0 !important;
+            margin: auto 0 20px 0 !important;
             max-width: 90% !important;
         }
-        /* ขยายกล่องเวลาเมื่อเต็มจอ */
         #fullscreen-target:fullscreen .timer-box {
             font-size: 65px !important;
             padding: 25px 60px !important;
             border-radius: 16px !important;
             width: 80% !important;
             max-width: 750px !important;
-            margin-top: 40px !important;
+            margin-top: 20px !important;
+            margin-bottom: 20px !important;
+        }
+        /* ขยายกล่องเฉลยคำตอบตอนเต็มจอ */
+        #fullscreen-target:fullscreen .answer-box {
+            font-size: 45px !important;
+            padding: 25px 50px !important;
+            border-radius: 16px !important;
+            width: 80% !important;
+            max-width: 750px !important;
+            margin-top: 20px !important;
             margin-bottom: auto !important;
         }
     </style>
@@ -92,6 +103,8 @@
         <div class="status-line hide-on-fullscreen"><strong>สถานะเกม:</strong>&nbsp;<span id="game-status-text">กำลังโหลด...</span></div>
         <div class="status-line" id="question-info" style="font-weight: bold; color: #495057;">โจทย์ปัจจุบัน: กำลังโหลด...</div>
         <div id="timer-display" class="timer-box">⏱️ เวลาที่เหลือ: 120 วินาที</div>
+        
+        <div id="answer-box" class="answer-box">🎯 เฉลยคำตอบ: <span id="answer-text">-</span></div>
         
         <button onclick="toggleFullscreen()" class="btn btn-orange hide-on-fullscreen" style="margin-top: 15px; padding: 8px; font-size: 14px; width: auto; display: block; margin-left: auto; margin-right: auto;">🖥️ ขยายหน้าจอโจทย์ (Fullscreen)</button>
     </div>
@@ -132,7 +145,6 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
-    // 🌟 ฟังก์ชันจัดการเปิด-ปิด Fullscreen สลับกันในปุ่มเดียว
     function toggleFullscreen() {
         const elem = document.getElementById('fullscreen-target');
         if (!document.fullscreenElement) {
@@ -211,6 +223,8 @@
         const statusText = document.getElementById('game-status-text');
         const questionInfo = document.getElementById('question-info');
         const timerControlGroup = document.getElementById('timer-control-group');
+        const answerBox = document.getElementById('answer-box');
+        const answerText = document.getElementById('answer-text');
 
         if (data.school_scores) {
             activeScores = data.school_scores;
@@ -247,6 +261,16 @@
         if (data.is_time_up || data.is_end) {
             if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
             document.getElementById('timer-display').innerText = data.is_end ? `🏁 จบการแข่งขันแล้ว` : `🔒 หมดเวลาส่งคำตอบแล้ว`;
+        }
+
+        /* 🌟 เงื่อนไขการเปิด-ปิดการแสดงคำตอบเฉลย */
+        if (data.is_started && (data.is_time_up || data.is_end)) {
+            // แสดงเฉลยคำตอบเมื่อหมดเวลา หรือจบเกมแล้ว (ระหว่างรอเปิดข้อถัดไป)
+            answerText.innerText = data.answer ? data.answer : 'ไม่มีข้อมูลเฉลยคำตอบในข้อนี้';
+            answerBox.style.display = 'block';
+        } else {
+            // ซ่อนเฉลยในเวลาที่กำลังแข่ง หรือยังไม่เริ่มเกม
+            answerBox.style.display = 'none';
         }
 
         if (!data.is_started) {

@@ -4,7 +4,8 @@ import time
 import csv
 import io
 import re
-import urllib.request  # 📌 เพิ่ม import สำหรับโหลดข้อมูลจาก Google Sheets
+import urllib.request
+import urllib.error  # 📌 เพิ่มเพื่อจัดการ Error กรณีไม่มีสิทธิ์เข้าถึงไฟล์
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -16,7 +17,7 @@ except ImportError:
     docx = None
     print("⚠️ แจ้งเตือน: ยังไม่ได้ติดตั้ง python-docx (รันคำสั่ง: pip install python-docx)")
 
-# 📌 ไลบรารีสำหรับอ่านไฟล์ PDF (เปลี่ยนมาใช้ PyMuPDF เพราะอ่านภาษาไทยได้ดีกว่า)
+# 📌 ไลบรารีสำหรับอ่านไฟล์ PDF
 try:
     import fitz  # PyMuPDF
 except ImportError:
@@ -266,7 +267,7 @@ def upload_questions():
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
-# 📌 API ใหม่สำหรับดึงโจทย์จาก Google Sheets
+# 📌 API สำหรับดึงโจทย์จาก Google Sheets (อัปเดตรองรับ Token สิทธิ์ส่วนตัว)
 @app.route('/api/import-gsheet', methods=['POST'])
 def import_gsheet():
     if session.get('role') != 'admin':
@@ -274,6 +275,8 @@ def import_gsheet():
     
     data = request.json or {}
     url = data.get('url', '')
+    access_token = data.get('access_token', '')  # รับ Token หากส่งมา
+    
     match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
     
     if not match:
@@ -284,6 +287,10 @@ def import_gsheet():
     
     try:
         req = urllib.request.Request(csv_url)
+        # 📌 ถ้ามี Token แนบมาด้วย ให้ใส่ใน Header เพื่อเข้าถึงไฟล์ Private
+        if access_token:
+            req.add_header('Authorization', f'Bearer {access_token}')
+            
         with urllib.request.urlopen(req) as response:
             csv_data = response.read().decode('utf-8')
             
@@ -308,8 +315,13 @@ def import_gsheet():
         save_db(DEFAULT_STATE)
         return jsonify({"status": "success", "message": f"ดึงข้อมูลจาก Sheet สำเร็จจำนวน {len(questions)} ข้อ"})
         
+    except urllib.error.HTTPError as e:
+        # ดักจับ Error กรณีไม่มีสิทธิ์เข้าถึง (ไฟล์ไม่ได้เปิดสาธารณะและไม่ได้ส่ง Token)
+        if e.code in [401, 403]:
+            return jsonify({"status": "error", "message": "ไม่มีสิทธิ์เข้าถึงไฟล์ (ไฟล์อาจเป็นส่วนตัว กรุณาใช้ปุ่ม 'โหลดจาก Drive ส่วนตัว' แทน)"}), 403
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด HTTP {e.code}"}), 500
     except Exception as e:
-        return jsonify({"status": "error", "message": f"ดึงข้อมูลไม่สำเร็จ ตรวจสอบว่าแชร์ชีตเป็น 'ทุกคนที่มีลิงก์' หรือยัง: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"ดึงข้อมูลไม่สำเร็จ: {str(e)}"}), 500
 
 @app.route('/api/start', methods=['POST'])
 def start_game():

@@ -95,7 +95,7 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย (ปรับปรุงให้รองรับช่องว่างและสัญลักษณ์ขีดเพิ่มเติม)
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
@@ -109,7 +109,8 @@ def parse_text_to_questions(text):
         if not line: 
             continue
         
-        q_match = re.search(r'^(?:\d+[\.\)]\s*)?(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
+        # 🛠️ ปรับปรุง Regex: รองรับช่องว่างด้านหน้าบรรทัด (^\s*) และรองรับเครื่องหมายขีด (เช่น โจทย์-เฉลย)
+        q_match = re.search(r'^\s*(?:\d+[\.\)]\s*)?(?:q|question|โจทย์|คำถาม)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
         if q_match:
             if current_q and current_a:
                 parsed_questions.append({
@@ -122,7 +123,7 @@ def parse_text_to_questions(text):
             current_a = []
             continue
             
-        a_match = re.search(r'^(?:\d+[\.\)]\s*)?(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
+        a_match = re.search(r'^\s*(?:\d+[\.\)]\s*)?(?:a|answer|เฉลย|คำตอบ)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
         if a_match:
             state = 'a'
             matched_text = a_match.group(1).strip()
@@ -241,7 +242,8 @@ def upload_questions():
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             text = ""
             for page in doc:
-                text += page.get_text() + "\n"
+                # 🛠️ ปรับปรุงแก้ไขจุดนี้: เพิ่มพารามิเตอร์ "text" และ sort=True เพื่อจัดเรียงข้อความไม่ให้เพี้ยน
+                text += page.get_text("text", sort=True) + "\n"
                 
             print("=== ข้อความที่สกัดได้จาก PDF ===")
             print(text)
@@ -267,7 +269,7 @@ def upload_questions():
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
-# 📌 API สำหรับดึงโจทย์จาก Google Sheets (อัปเดตรองรับ Token สิทธิ์ส่วนตัว)
+# 📌 API สำหรับดึงโจทย์จาก Google Sheets
 @app.route('/api/import-gsheet', methods=['POST'])
 def import_gsheet():
     if session.get('role') != 'admin':
@@ -275,7 +277,7 @@ def import_gsheet():
     
     data = request.json or {}
     url = data.get('url', '')
-    access_token = data.get('access_token', '')  # รับ Token หากส่งมา
+    access_token = data.get('access_token', '')  
     
     match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
     
@@ -287,7 +289,6 @@ def import_gsheet():
     
     try:
         req = urllib.request.Request(csv_url)
-        # 📌 ถ้ามี Token แนบมาด้วย ให้ใส่ใน Header เพื่อเข้าถึงไฟล์ Private
         if access_token:
             req.add_header('Authorization', f'Bearer {access_token}')
             
@@ -299,7 +300,6 @@ def import_gsheet():
         for row in csv.reader(stream):
             if len(row) >= 2:
                 q, a = row[0].strip(), row[1].strip()
-                # ข้าม Header
                 if q.lower() in ['q', 'โจทย์', 'คำถาม'] and a.lower() in ['a', 'เฉลย', 'คำตอบ']: continue
                 if q and a: new_qs.append({"q": q, "a": a})
                 
@@ -316,7 +316,6 @@ def import_gsheet():
         return jsonify({"status": "success", "message": f"ดึงข้อมูลจาก Sheet สำเร็จจำนวน {len(questions)} ข้อ"})
         
     except urllib.error.HTTPError as e:
-        # ดักจับ Error กรณีไม่มีสิทธิ์เข้าถึง (ไฟล์ไม่ได้เปิดสาธารณะและไม่ได้ส่ง Token)
         if e.code in [401, 403]:
             return jsonify({"status": "error", "message": "ไม่มีสิทธิ์เข้าถึงไฟล์ (ไฟล์อาจเป็นส่วนตัว กรุณาใช้ปุ่ม 'โหลดจาก Drive ส่วนตัว' แทน)"}), 403
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด HTTP {e.code}"}), 500

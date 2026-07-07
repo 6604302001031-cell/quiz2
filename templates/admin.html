@@ -11,6 +11,20 @@
         .admin-info { font-size: 14px; color: #495057; font-weight: bold; }
         .admin-info span { color: #2196f3; }
         .btn-logout { background-color: #dc3545; color: white; padding: 7px 14px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+        
+        /* 📌 สไตล์สำหรับกล่องแสดงจำนวนผู้ใช้งานออนไลน์ */
+        .online-status {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1e8e3e;
+            background-color: #e6f4ea;
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         h2 { color: #333333; margin-bottom: 25px; font-size: 26px; }
         .status-box { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; text-align: left; margin-bottom: 25px; position: relative; }
         .status-line { font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; }
@@ -108,6 +122,11 @@
 <div class="admin-container">
     <div class="admin-header-bar">
         <div class="admin-info">👤 แอดมิน: <span>{{ session.name }}</span></div>
+        
+        <div class="online-status">
+            🟢 ออนไลน์: <span id="online-users-count">0</span> คน
+        </div>
+
         <a href="/logout" class="btn-logout">🚪 ออกจากระบบ</a>
     </div>
 
@@ -247,6 +266,12 @@
 
     function renderUI(data) {
         if (!data) return;
+        
+        // 📌 รับตัวเลขผู้ใช้งานออนไลน์ที่แนบมาแสดงผล
+        if (data.active_users_count !== undefined) {
+            document.getElementById('online-users-count').innerText = data.active_users_count;
+        }
+
         const statusText = document.getElementById('game-status-text');
         const questionInfo = document.getElementById('question-info');
         const timerControlGroup = document.getElementById('timer-control-group');

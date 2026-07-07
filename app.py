@@ -5,7 +5,7 @@ import csv
 import io
 import re
 import urllib.request
-import urllib.error  # 📌 เพิ่มเพื่อจัดการ Error กรณีไม่มีสิทธิ์เข้าถึงไฟล์
+import urllib.error  # จัดการ Error กรณีไม่มีสิทธิ์เข้าถึงไฟล์ Google Sheets
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -34,12 +34,13 @@ active_users_memory = {}
 QUESTIONS_FILE = "/tmp/questions.json"
 DB_FILE = "/tmp/game_database.json"
 
-# โจทย์เริ่มต้น
-questions = [
+# โจทย์เริ่มต้นเริ่มต้น
+default_questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10"},
     {"q": "1 + 1 เท่ากับเท่าไร?", "a": "2"},
     {"q": "7 + 7 เท่ากับเท่าไร?", "a": "14"}
 ]
+questions = list(default_questions)
 
 # โหลดโจทย์ที่เคยอัปโหลดไว้
 if os.path.exists(QUESTIONS_FILE):
@@ -51,15 +52,17 @@ if os.path.exists(QUESTIONS_FILE):
     except Exception as e:
         print("Error loading questions file:", e)
 
-DEFAULT_STATE = {
-    "is_started": False,
-    "is_end": False,
-    "current_index": 0,
-    "is_time_up": False,
-    "school_scores": {},  
-    "player_scores": {},  
-    "current_answers": {} 
-}
+# 📌 ใช้ฟังก์ชันสร้าง State เริ่มต้นเพื่อป้องกันปัญหา Shallow Copy Reference Bug
+def get_default_state():
+    return {
+        "is_started": False,
+        "is_end": False,
+        "current_index": 0,
+        "is_time_up": False,
+        "school_scores": {},  
+        "player_scores": {},  
+        "current_answers": {} 
+    }
 
 def load_db():
     if os.path.exists(DB_FILE):
@@ -67,8 +70,8 @@ def load_db():
             with open(DB_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            return DEFAULT_STATE.copy()
-    return DEFAULT_STATE.copy()
+            return get_default_state()
+    return get_default_state()
 
 def save_db(data):
     try:
@@ -95,7 +98,7 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย (ปรับปรุงให้รองรับช่องว่างและสัญลักษณ์ขีดเพิ่มเติม)
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
@@ -109,7 +112,6 @@ def parse_text_to_questions(text):
         if not line: 
             continue
         
-        # 🛠️ ปรับปรุง Regex: รองรับช่องว่างด้านหน้าบรรทัด (^\s*) และรองรับเครื่องหมายขีด (เช่น โจทย์-เฉลย)
         q_match = re.search(r'^\s*(?:\d+[\.\)]\s*)?(?:q|question|โจทย์|คำถาม)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
         if q_match:
             if current_q and current_a:
@@ -242,20 +244,15 @@ def upload_questions():
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             text = ""
             for page in doc:
-                # 🛠️ ปรับปรุงแก้ไขจุดนี้: เพิ่มพารามิเตอร์ "text" และ sort=True เพื่อจัดเรียงข้อความไม่ให้เพี้ยน
                 text += page.get_text("text", sort=True) + "\n"
                 
-            print("=== ข้อความที่สกัดได้จาก PDF ===")
-            print(text)
-            print("==================================")
-            
             new_qs = parse_text_to_questions(text)
             
         else:
             return jsonify({"status": "error", "message": "รองรับเฉพาะ .json, .csv, .docx, .md, .pdf เท่านั้น"}), 400
 
         if len(new_qs) == 0:
-            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง (ตรวจสอบรูปแบบ โจทย์: / เฉลย:)"}), 400
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง"}), 400
 
         global questions
         questions = new_qs
@@ -263,13 +260,12 @@ def upload_questions():
         with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(questions, f, ensure_ascii=False, indent=4)
             
-        save_db(DEFAULT_STATE)
+        save_db(get_default_state())
         return jsonify({"status": "success", "message": f"อัปโหลดสำเร็จ {len(questions)} ข้อ และรีเซ็ตระบบแล้ว"})
         
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
-# 📌 API สำหรับดึงโจทย์จาก Google Sheets
 @app.route('/api/import-gsheet', methods=['POST'])
 def import_gsheet():
     if session.get('role') != 'admin':
@@ -280,7 +276,6 @@ def import_gsheet():
     access_token = data.get('access_token', '')  
     
     match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
-    
     if not match:
         return jsonify({"status": "error", "message": "ลิงก์ Google Sheet ไม่ถูกต้อง"}), 400
     
@@ -312,7 +307,7 @@ def import_gsheet():
         with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(questions, f, ensure_ascii=False, indent=4)
             
-        save_db(DEFAULT_STATE)
+        save_db(get_default_state())
         return jsonify({"status": "success", "message": f"ดึงข้อมูลจาก Sheet สำเร็จจำนวน {len(questions)} ข้อ"})
         
     except urllib.error.HTTPError as e:
@@ -327,6 +322,9 @@ def start_game():
     if session.get('role') != 'admin':
         return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
     
+    if len(questions) == 0:
+         return jsonify({"status": "error", "message": "ไม่มีโจทย์ในระบบ กรุณาอัปโหลดโจทย์ก่อน"}), 400
+
     db = load_db()
     db["is_started"] = True
     db["is_end"] = False
@@ -349,12 +347,11 @@ def start_game():
 @app.route('/api/state')
 def get_state():
     db = load_db()
-    
     email = session.get('email')
     if email and session.get('role') == 'user':
         active_users_memory[email] = time.time()
         
-    if db["current_index"] >= len(questions):
+    if len(questions) > 0 and db["current_index"] >= len(questions):
         db["is_end"] = True
         db["current_index"] = max(0, len(questions) - 1)
         save_db(db)
@@ -364,9 +361,9 @@ def get_state():
     correct_count = 0
     incorrect_count = 0
 
-    if db["is_started"] and not db["is_end"] and len(questions) > 0:
+    if db["is_started"] and len(questions) > 0:
         current_idx = db["current_index"]
-        current_q = questions[current_idx]["q"]
+        current_q = questions[current_idx]["q"] if not db["is_end"] else ""
         correct_ans = questions[current_idx]["a"]
         
         for p_email, player_data in db.get("current_answers", {}).items():
@@ -416,7 +413,7 @@ def trigger_timeout():
                 incorrect_count += 1
             
             if not player_data.get("evaluated", False):
-                school = player_data["school"] or "ไม่ระบุสังกัด"
+                school = player_data.get("school") or "ไม่ระบุสังกัด"
                 
                 if is_ans_correct:
                     school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
@@ -463,7 +460,7 @@ def next_question():
         
         for email, player_data in list(db["current_answers"].items()):
             if not player_data.get("evaluated", False):
-                school = player_data["school"] or "ไม่ระบุสังกัด"
+                school = player_data.get("school") or "ไม่ระบุสังกัด"
                 if is_correct(player_data["answer"], correct_answer):
                     school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
                     db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
@@ -513,7 +510,7 @@ def reset_game():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    save_db(DEFAULT_STATE)
+    save_db(get_default_state())
     return jsonify({
         "status": "success",
         "state": {

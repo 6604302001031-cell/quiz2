@@ -93,27 +93,59 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย (อัปเดตใช้ re.search)
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย (อัปเดตรองรับโจทย์ยาวหลายบรรทัด และตัวเลขหน้าข้อ)
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
-    current_q = None
+    
+    current_q = []
+    current_a = []
+    state = None  # ใช้บอกว่าตอนนี้กำลังเก็บ 'q' (โจทย์) หรือ 'a' (เฉลย)
     
     for line in lines:
         line = line.strip()
-        if not line: continue
+        if not line: 
+            continue
         
-        # ปรับ Regex ให้ยืดหยุ่นขึ้น ใช้ re.search หาคำที่ซ่อนอยู่ในบรรทัด
-        q_match = re.search(r'(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
+        # 1. ตรวจหาคำว่า โจทย์ (รองรับตัวเลขหน้าข้อ เช่น "1. โจทย์:" หรือ "1) คำถาม:")
+        q_match = re.search(r'^(?:\d+[\.\)]\s*)?(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if q_match:
-            current_q = q_match.group(1).strip()
+            # ถ้ามีข้อมูลข้อก่อนหน้าเก็บไว้ ให้บันทึกลง List ก่อนเริ่มข้อใหม่
+            if current_q and current_a:
+                parsed_questions.append({
+                    "q": " ".join(current_q).strip(),
+                    "a": " ".join(current_a).strip()
+                })
+            
+            state = 'q'
+            # เก็บข้อความที่อยู่หลังคำว่าโจทย์ (ถ้ามี)
+            matched_text = q_match.group(1).strip()
+            current_q = [matched_text] if matched_text else []
+            current_a = []
             continue
             
-        a_match = re.search(r'(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
-        if a_match and current_q:
-            parsed_questions.append({"q": current_q, "a": a_match.group(1).strip()})
-            current_q = None 
+        # 2. ตรวจหาคำว่า เฉลย
+        a_match = re.search(r'^(?:\d+[\.\)]\s*)?(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
+        if a_match:
+            state = 'a'
+            # เก็บข้อความที่อยู่หลังคำว่าเฉลย (ถ้ามี)
+            matched_text = a_match.group(1).strip()
+            current_a = [matched_text] if matched_text else []
+            continue
             
+        # 3. ถ้าไม่มีคำว่าโจทย์/เฉลย ให้เอาข้อความบรรทัดนี้ไปต่อท้ายสถานะปัจจุบัน
+        if state == 'q':
+            current_q.append(line)
+        elif state == 'a':
+            current_a.append(line)
+            
+    # อย่าลืมบันทึกข้อสุดท้ายที่ค้างอยู่ในลูปตอนอ่านจบไฟล์
+    if current_q and current_a:
+        parsed_questions.append({
+            "q": " ".join(current_q).strip(),
+            "a": " ".join(current_a).strip()
+        })
+        
     return parsed_questions
 
 # ==========================================

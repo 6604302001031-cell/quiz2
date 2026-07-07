@@ -147,7 +147,9 @@ def start_game():
         "status": "success",
         "state": {
             "is_started": True, "is_time_up": False, "is_end": False,
-            "current_number": 1, "question": questions[0]["q"], "school_scores": db["school_scores"]
+            "current_number": 1, "question": questions[0]["q"], "answer": questions[0]["a"],
+            "correct_count": 0, "incorrect_count": 0,
+            "school_scores": db["school_scores"]
         }
     })
 
@@ -160,8 +162,21 @@ def get_state():
         save_db(db)
 
     current_q = ""
+    correct_ans = ""
+    correct_count = 0
+    incorrect_count = 0
+
     if db["is_started"] and not db["is_end"]:
-        current_q = questions[db["current_index"]]["q"]
+        current_idx = db["current_index"]
+        current_q = questions[current_idx]["q"]
+        correct_ans = questions[current_idx]["a"]
+        
+        # 📌 นับจำนวนตอบถูก/ผิด ตลอดเวลาเพื่อดึงไปแสดงผล
+        for email, player_data in db.get("current_answers", {}).items():
+            if is_correct(player_data.get("answer"), correct_ans):
+                correct_count += 1
+            else:
+                incorrect_count += 1
         
     return jsonify({
         "is_started": db["is_started"],
@@ -169,6 +184,9 @@ def get_state():
         "is_end": db["is_end"],
         "current_number": db["current_index"] + 1,
         "question": current_q,
+        "answer": correct_ans,
+        "correct_count": correct_count,
+        "incorrect_count": incorrect_count,
         "school_scores": db["school_scores"]
     })
 
@@ -184,16 +202,28 @@ def trigger_timeout():
     db["is_time_up"] = True
     current_idx = db["current_index"]
     
+    correct_count = 0
+    incorrect_count = 0
+    
     if current_idx < len(questions):
         correct_answer = questions[current_idx]["a"]
         school_correct_counts = {}
         
-        # นับจำนวนคนที่ตอบถูกในแต่ละโรงเรียนสำหรับข้อนี้
+        # นับจำนวนคนที่ตอบถูกในแต่ละโรงเรียนสำหรับข้อนี้ และรวมยอดสำหรับแสดงผล
         for email, player_data in list(db["current_answers"].items()):
+            is_ans_correct = is_correct(player_data["answer"], correct_answer)
+            
+            # 📌 นับรวม
+            if is_ans_correct:
+                correct_count += 1
+            else:
+                incorrect_count += 1
+            
+            # 📌 คำนวณคะแนนเฉพาะคนที่ยังไม่ได้คิดคะแนน
             if not player_data.get("evaluated", False):
                 school = player_data["school"] or "ไม่ระบุสังกัด"
                 
-                if is_correct(player_data["answer"], correct_answer):
+                if is_ans_correct:
                     school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
                     db["player_scores"][email] = db["player_scores"].get(email, 0) + 1 # ผู้เล่นรายคนยังได้ +1 เสมอ
                 
@@ -209,11 +239,15 @@ def trigger_timeout():
             
     save_db(db)
     current_q = questions[current_idx]["q"] if current_idx < len(questions) else ""
+    correct_ans = questions[current_idx]["a"] if current_idx < len(questions) else ""
+    
     return jsonify({
         "status": "success",
         "state": {
             "is_started": True, "is_time_up": True, "is_end": db["is_end"],
-            "current_number": current_idx + 1, "question": current_q, "school_scores": db["school_scores"]
+            "current_number": current_idx + 1, "question": current_q, "answer": correct_ans,
+            "correct_count": correct_count, "incorrect_count": incorrect_count,
+            "school_scores": db["school_scores"]
         }
     })
 
@@ -255,7 +289,9 @@ def next_question():
             "status": "success", 
             "state": {
                 "is_started": True, "is_time_up": True, "is_end": True,
-                "current_number": current_idx + 1, "question": "", "school_scores": db["school_scores"]
+                "current_number": current_idx + 1, "question": "", "answer": "-",
+                "correct_count": 0, "incorrect_count": 0,
+                "school_scores": db["school_scores"]
             }
         })
 
@@ -265,11 +301,14 @@ def next_question():
     save_db(db)
     
     next_q = questions[db["current_index"]]["q"]
+    next_a = questions[db["current_index"]]["a"]
     return jsonify({
         "status": "success",
         "state": {
             "is_started": True, "is_time_up": False, "is_end": False,
-            "current_number": db["current_index"] + 1, "question": next_q, "school_scores": db["school_scores"]
+            "current_number": db["current_index"] + 1, "question": next_q, "answer": next_a,
+            "correct_count": 0, "incorrect_count": 0,
+            "school_scores": db["school_scores"]
         }
     })
 
@@ -283,7 +322,9 @@ def reset_game():
         "status": "success",
         "state": {
             "is_started": False, "is_time_up": False, "is_end": False,
-            "current_number": 1, "question": "รอแอดมินกดเริ่มเกม", "school_scores": {}
+            "current_number": 1, "question": "รอแอดมินกดเริ่มเกม", "answer": "-",
+            "correct_count": 0, "incorrect_count": 0,
+            "school_scores": {}
         }
     })
 

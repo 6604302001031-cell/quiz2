@@ -157,13 +157,14 @@
         <button class="close-modal-btn" onclick="closeEditModal()">&times;</button>
         <h4 style="margin-top: 0; font-size: 18px; color: #333;">📁 อัปโหลดชุดคำถามใหม่</h4>
         
-        <input type="file" id="question-file" accept=".json" style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <input type="file" id="question-file" accept=".json, .pdf" style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดและเริ่มใหม่</button>
         
         <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
             <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์ที่รองรับ:</strong></p>
             <ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
                 <li><b>.json</b> - โครงสร้างจะต้องเป็น List: <br><code>[{"q": "โจทย์ข้อ 1", "a": "เฉลย"}, ...]</code></li>
+                <li><b>.pdf</b> - สำหรับอัปโหลดไฟล์เอกสารโจทย์</li>
             </ul>
         </div>
     </div>
@@ -189,7 +190,8 @@
         const file = fileInput.files[0];
         
         if (!file) {
-            alert("⚠️ กรุณาเลือกไฟล์ .json ก่อนอัปโหลด");
+            // 📌 แก้ไขข้อความแจ้งเตือนให้อิงตามไฟล์ที่รองรับ
+            alert("⚠️ กรุณาเลือกไฟล์ .json หรือ .pdf ก่อนอัปโหลด");
             return;
         }
 

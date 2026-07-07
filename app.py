@@ -93,7 +93,7 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย (อัปเดตใช้ re.search)
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
@@ -103,13 +103,13 @@ def parse_text_to_questions(text):
         line = line.strip()
         if not line: continue
         
-        # ปรับ Regex ให้ยืดหยุ่นขึ้น (มีหรือไม่มีเครื่องหมาย : ก็ได้ เผื่อ PDF อ่านเพี้ยน)
-        q_match = re.match(r'^(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
+        # ปรับ Regex ให้ยืดหยุ่นขึ้น ใช้ re.search หาคำที่ซ่อนอยู่ในบรรทัด
+        q_match = re.search(r'(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if q_match:
             current_q = q_match.group(1).strip()
             continue
             
-        a_match = re.match(r'^(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
+        a_match = re.search(r'(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if a_match and current_q:
             parsed_questions.append({"q": current_q, "a": a_match.group(1).strip()})
             current_q = None 

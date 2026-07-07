@@ -4,6 +4,7 @@ import time
 import csv
 import io
 import re
+import urllib.request  # 📌 เพิ่ม import สำหรับโหลดข้อมูลจาก Google Sheets
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -93,53 +94,45 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย (อัปเดตรองรับโจทย์ยาวหลายบรรทัด และตัวเลขหน้าข้อ)
+# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
     
     current_q = []
     current_a = []
-    state = None  # ใช้บอกว่าตอนนี้กำลังเก็บ 'q' (โจทย์) หรือ 'a' (เฉลย)
+    state = None  
     
     for line in lines:
         line = line.strip()
         if not line: 
             continue
         
-        # 1. ตรวจหาคำว่า โจทย์ (รองรับตัวเลขหน้าข้อ เช่น "1. โจทย์:" หรือ "1) คำถาม:")
         q_match = re.search(r'^(?:\d+[\.\)]\s*)?(?:q|question|โจทย์|คำถาม)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if q_match:
-            # ถ้ามีข้อมูลข้อก่อนหน้าเก็บไว้ ให้บันทึกลง List ก่อนเริ่มข้อใหม่
             if current_q and current_a:
                 parsed_questions.append({
                     "q": " ".join(current_q).strip(),
                     "a": " ".join(current_a).strip()
                 })
-            
             state = 'q'
-            # เก็บข้อความที่อยู่หลังคำว่าโจทย์ (ถ้ามี)
             matched_text = q_match.group(1).strip()
             current_q = [matched_text] if matched_text else []
             current_a = []
             continue
             
-        # 2. ตรวจหาคำว่า เฉลย
         a_match = re.search(r'^(?:\d+[\.\)]\s*)?(?:a|answer|เฉลย|คำตอบ)\s*[\.:]?\s*(.*)', line, re.IGNORECASE)
         if a_match:
             state = 'a'
-            # เก็บข้อความที่อยู่หลังคำว่าเฉลย (ถ้ามี)
             matched_text = a_match.group(1).strip()
             current_a = [matched_text] if matched_text else []
             continue
             
-        # 3. ถ้าไม่มีคำว่าโจทย์/เฉลย ให้เอาข้อความบรรทัดนี้ไปต่อท้ายสถานะปัจจุบัน
         if state == 'q':
             current_q.append(line)
         elif state == 'a':
             current_a.append(line)
             
-    # อย่าลืมบันทึกข้อสุดท้ายที่ค้างอยู่ในลูปตอนอ่านจบไฟล์
     if current_q and current_a:
         parsed_questions.append({
             "q": " ".join(current_q).strip(),
@@ -239,19 +232,16 @@ def upload_questions():
             text = "\n".join([para.text for para in doc.paragraphs])
             new_qs = parse_text_to_questions(text)
             
-        # 📌 อัปเดตการอ่านไฟล์ PDF ด้วย PyMuPDF (fitz)
         elif filename.endswith('.pdf'):
             if fitz is None:
                 return jsonify({"status": "error", "message": "ระบบยังไม่รองรับไฟล์ PDF กรุณาติดตั้ง PyMuPDF"}), 500
             
-            # อ่านไฟล์ PDF จากหน่วยความจำโดยตรง
             file_bytes = file.read()
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             text = ""
             for page in doc:
                 text += page.get_text() + "\n"
                 
-            # เพิ่ม print เพื่อแสดงผลในหน้าจอ Console ให้ง่ายต่อการ Debug
             print("=== ข้อความที่สกัดได้จาก PDF ===")
             print(text)
             print("==================================")
@@ -275,6 +265,51 @@ def upload_questions():
         
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
+
+# 📌 API ใหม่สำหรับดึงโจทย์จาก Google Sheets
+@app.route('/api/import-gsheet', methods=['POST'])
+def import_gsheet():
+    if session.get('role') != 'admin':
+        return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
+    
+    data = request.json or {}
+    url = data.get('url', '')
+    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+    
+    if not match:
+        return jsonify({"status": "error", "message": "ลิงก์ Google Sheet ไม่ถูกต้อง"}), 400
+    
+    sheet_id = match.group(1)
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    
+    try:
+        req = urllib.request.Request(csv_url)
+        with urllib.request.urlopen(req) as response:
+            csv_data = response.read().decode('utf-8')
+            
+        stream = io.StringIO(csv_data, newline=None)
+        new_qs = []
+        for row in csv.reader(stream):
+            if len(row) >= 2:
+                q, a = row[0].strip(), row[1].strip()
+                # ข้าม Header
+                if q.lower() in ['q', 'โจทย์', 'คำถาม'] and a.lower() in ['a', 'เฉลย', 'คำตอบ']: continue
+                if q and a: new_qs.append({"q": q, "a": a})
+                
+        if len(new_qs) == 0:
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลในแผ่นงาน"}), 400
+            
+        global questions
+        questions = new_qs
+        
+        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(questions, f, ensure_ascii=False, indent=4)
+            
+        save_db(DEFAULT_STATE)
+        return jsonify({"status": "success", "message": f"ดึงข้อมูลจาก Sheet สำเร็จจำนวน {len(questions)} ข้อ"})
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"ดึงข้อมูลไม่สำเร็จ ตรวจสอบว่าแชร์ชีตเป็น 'ทุกคนที่มีลิงก์' หรือยัง: {str(e)}"}), 500
 
 @app.route('/api/start', methods=['POST'])
 def start_game():

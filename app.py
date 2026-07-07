@@ -98,7 +98,8 @@ def get_active_users_count():
     current_time = time.time()
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
-# 📌 ฟังก์ชันสำหรับแปลงข้อความ เป็นโจทย์และเฉลย
+
+# 📌 [ปรับปรุง] เพิ่ม Regex ให้รองรับทั้งตัวเลขข้อโดดๆ (เช่น 1. หรือ ข้อ 1) และคีย์เวิร์ด เพื่อให้อ่าน PDF/Word ได้แม่นยำขึ้น
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
@@ -112,21 +113,26 @@ def parse_text_to_questions(text):
         if not line: 
             continue
         
-        q_match = re.search(r'^\s*(?:\d+[\.\)]\s*)?(?:q|question|โจทย์|คำถาม)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
-        if q_match:
+        # ดักจับคำถาม: รองรับโครงสร้างตัวเลข "1. โจทย์" หรือ "ข้อ 1)" หรือคำว่า "โจทย์:"
+        q_match = re.search(r'^\s*(?:ข้อ\s*)?(\d+)\s*[\.\)]\s*(.*)', line)
+        q_keyword_match = re.search(r'^\s*(?:q|question|โจทย์|คำถาม)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
+        
+        # ดักจับคำตอบ: รองรับคำว่า "เฉลย:" "คำตอบ:" "ตอบ" หรือ "A:"
+        a_match = re.search(r'^\s*(?:a|answer|เฉลย|คำตอบ|ตอบ)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
+        
+        if q_match or q_keyword_match:
             if current_q and current_a:
                 parsed_questions.append({
                     "q": " ".join(current_q).strip(),
                     "a": " ".join(current_a).strip()
                 })
             state = 'q'
-            matched_text = q_match.group(1).strip()
+            matched_text = q_match.group(2).strip() if q_match else q_keyword_match.group(1).strip()
             current_q = [matched_text] if matched_text else []
             current_a = []
             continue
             
-        a_match = re.search(r'^\s*(?:\d+[\.\)]\s*)?(?:a|answer|เฉลย|คำตอบ)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
-        if a_match:
+        elif a_match:
             state = 'a'
             matched_text = a_match.group(1).strip()
             current_a = [matched_text] if matched_text else []
@@ -144,6 +150,51 @@ def parse_text_to_questions(text):
         })
         
     return parsed_questions
+
+
+# ==========================================
+# 🏫 [เพิ่มใหม่] API สำหรับส่งรายชื่อโรงเรียนกลับไปที่หน้าเว็บ
+# ==========================================
+@app.route('/api/schools', methods=['GET', 'POST'])
+@app.route('/api/get-schools', methods=['GET', 'POST']) # รองรับเผื่อกรณี Frontend เรียกคนละชื่อ
+def get_schools():
+    # รองรับการดึงข้อมูลทั้งจาก Query String (GET) หรือ JSON Body (POST)
+    province = request.args.get('province') or ""
+    if request.method == 'POST' and request.is_json:
+        data = request.json or {}
+        province = data.get('province', province)
+        
+    province = province.strip()
+    
+    # คลังข้อมูลรายชื่อโรงเรียนจำลองตามจังหวัดหลัก (โดยเฉพาะ ชุมพร และ สุราษฎร์ธานี ในพื้นที่บริการ)
+    schools_database = {
+        "ชุมพร": [
+            "โรงเรียนศรียาภัย",
+            "โรงเรียนสะอาดเผดิมวิทยา",
+            "โรงเรียนสวนกุหลาบวิทยาลัย ชุมพร",
+            "โรงเรียนสวีวิทยา",
+            "โรงเรียนหลังสวนวิทยา",
+            "โรงเรียนเมืองชุมพร",
+            "โรงเรียนสัจจศึกษา"
+        ],
+        "สุราษฎร์ธานี": [
+            "โรงเรียนสุราษฎร์ธานี",
+            "โรงเรียนสุราษฎร์พิทยา",
+            "โรงเรียนเมืองสุราษฎร์ธานี",
+            "โรงเรียนศึกษาสงเคราะห์สุราษฎร์ธานี",
+            "โรงเรียนพุนพินพิทยาคม"
+        ]
+    }
+    
+    # หากระบุจังหวัดอื่นๆ ที่ไม่อยู่ในคลังข้อมูล จะ Generate ชื่อพื้นฐานส่งกลับไปให้ เพื่อไม่ให้ Frontend พัง
+    school_list = schools_database.get(province, [
+        f"โรงเรียนประจำจังหวัด{province}",
+        f"โรงเรียนมัธยม{province}",
+        f"โรงเรียนอนุบาล{province}"
+    ])
+    
+    return jsonify(school_list)
+
 
 # ==========================================
 # 🏠 เส้นทางหลัก & ระบบล็อกอิน
@@ -290,6 +341,10 @@ def import_gsheet():
         with urllib.request.urlopen(req) as response:
             csv_data = response.read().decode('utf-8')
             
+        # 📌 [ปรับปรุงเพิ่มเติม] ป้องกันกรณีแผ่นงานเป็นส่วนตัวแล้วดึงมาได้เป็นหน้า HTML ล็อกอิน ให้แจ้งเตือนผู้ใช้ตรงๆ
+        if "<html" in csv_data.lower() or "<doctype" in csv_data.lower():
+            return jsonify({"status": "error", "message": "ดึงข้อมูลล้มเหลว: โปรดตรวจสอบว่าคุณได้แชร์ลิงก์ Google Sheet เป็น 'ทุกคนที่มีลิงก์มีสิทธิ์อ่าน' แล้ว"}), 400
+
         stream = io.StringIO(csv_data, newline=None)
         new_qs = []
         for row in csv.reader(stream):
@@ -312,7 +367,7 @@ def import_gsheet():
         
     except urllib.error.HTTPError as e:
         if e.code in [401, 403]:
-            return jsonify({"status": "error", "message": "ไม่มีสิทธิ์เข้าถึงไฟล์ (ไฟล์อาจเป็นส่วนตัว กรุณาใช้ปุ่ม 'โหลดจาก Drive ส่วนตัว' แทน)"}), 403
+            return jsonify({"status": "error", "message": "ไม่มีสิทธิ์เข้าถึงไฟล์ (กรุณาปรับการตั้งค่าแชร์ใน Google Sheets ให้เป็นสาธารณะ)"}), 403
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด HTTP {e.code}"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": f"ดึงข้อมูลไม่สำเร็จ: {str(e)}"}), 500

@@ -10,18 +10,12 @@
         .admin-header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #dee2e6; }
         .admin-info { font-size: 14px; color: #495057; font-weight: bold; }
         .admin-info span { color: #2196f3; }
-        .btn-logout { background-color: #dc3545; color: white; padding: 7px 14px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+        .btn-logout { background-color: #dc3545; color: white; padding: 7px 14px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; transition: 0.2s; }
+        .btn-logout:hover { background-color: #c82333; }
         
         .online-status {
-            font-size: 14px;
-            font-weight: bold;
-            color: #1e8e3e;
-            background-color: #e6f4ea;
-            padding: 6px 12px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            font-size: 14px; font-weight: bold; color: #1e8e3e; background-color: #e6f4ea;
+            padding: 6px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px;
         }
 
         h2 { color: #333333; margin-bottom: 25px; font-size: 26px; }
@@ -31,8 +25,12 @@
         .dot-green { background-color: #4caf50; }
         .dot-red { background-color: #f44336; }
         .dot-yellow { background-color: #f1c40f; }
-        .timer-box { background-color: #fff9db; border: 1px solid #ffe3e3; padding: 12px; border-radius: 6px; font-size: 22px; font-weight: bold; color: #d9480f; text-align: center; margin-top: 15px; }
         
+        /* 📌 ส่วนตั้งค่าเวลา */
+        .timer-setting { margin-top: 15px; text-align: center; font-size: 15px; font-weight: bold; color: #555; }
+        .timer-input { width: 60px; padding: 6px; border-radius: 6px; border: 1px solid #ccc; text-align: center; font-size: 16px; font-weight: bold; color: #d9480f; margin-left: 10px; }
+
+        .timer-box { background-color: #fff9db; border: 1px solid #ffe3e3; padding: 12px; border-radius: 6px; font-size: 22px; font-weight: bold; color: #d9480f; text-align: center; margin-top: 15px; }
         .answer-box { background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; font-size: 20px; font-weight: bold; color: #155724; text-align: center; margin-top: 15px; display: none; }
         
         .stats-box { display: flex; justify-content: center; gap: 15px; margin-top: 15px; display: none; }
@@ -40,14 +38,21 @@
         .stat-correct { background-color: #e6f4ea; color: #1e8e3e; border: 1px solid #ceead6; }
         .stat-incorrect { background-color: #fce8e6; color: #d93025; border: 1px solid #fad2cf; }
 
-        .btn { font-size: 16px; padding: 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 12px; }
+        .btn { font-size: 16px; padding: 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 12px; transition: 0.2s; }
         .btn:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; opacity: 0.7; }
         .btn-orange { background-color: #ff9800; color: white; }
+        .btn-orange:hover { background-color: #e68a00; }
         .btn-blue { background-color: #2196f3; color: white; }
+        .btn-blue:hover { background-color: #1976d2; }
         .btn-yellow { background-color: #f1c40f; color: white; }
+        .btn-yellow:hover { background-color: #d4ac0d; }
         .btn-green { background-color: #2ecc71; color: white; }
+        .btn-green:hover { background-color: #27ae60; }
         .btn-purple { background-color: #9c27b0; color: white; margin-top: 10px; }
+        .btn-purple:hover { background-color: #7b1fa2; }
         .btn-red-outline { background-color: white; color: #f44336; border: 1px solid #f44336; }
+        .btn-red-outline:hover { background-color: #fceceb; }
+        
         .timer-btn-group { display: flex; gap: 10px; margin-bottom: 12px; }
         .timer-btn-group .btn { margin-bottom: 0; }
         .modal-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; }
@@ -57,7 +62,6 @@
         .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
         .score-table th { background-color: #f1f3f5; }
 
-        /* 📌 สไตล์สำหรับปุ่มดินสอแก้ไขโจทย์ */
         .edit-icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px; padding: 0; transition: transform 0.2s; display: inline-block; }
         .edit-icon-btn:hover { transform: scale(1.2); }
 
@@ -79,12 +83,8 @@
         #fullscreen-target:fullscreen .show-on-fullscreen { display: block !important; }
         
         #fullscreen-target:fullscreen #question-info {
-            font-size: 46px !important;
-            color: #111111 !important;
-            text-align: center !important;
-            line-height: 1.6 !important;
-            margin: auto 0 20px 0 !important;
-            max-width: 90% !important;
+            font-size: 46px !important; color: #111111 !important; text-align: center !important;
+            line-height: 1.6 !important; margin: auto 0 20px 0 !important; max-width: 90% !important;
         }
         #fullscreen-target:fullscreen .timer-box { font-size: 65px !important; padding: 25px 60px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; margin-bottom: 20px !important; }
         #fullscreen-target:fullscreen .answer-box { font-size: 45px !important; padding: 25px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; }
@@ -96,7 +96,7 @@
 
 <div class="admin-container">
     <div class="admin-header-bar">
-        <div class="admin-info">👤 แอดมิน: <span>{{ session.name }}</span></div>
+        <div class="admin-info">👤 แอดมิน: <span>{{ session.name | default('Admin') }}</span></div>
         <div class="online-status">🟢 ออนไลน์: <span id="online-users-count">0</span> คน</div>
         <a href="/logout" class="btn-logout">🚪 ออกจากระบบ</a>
     </div>
@@ -104,7 +104,7 @@
     <h2>👑 ระบบควบคุมเกม (แอดมิน)</h2>
 
     <div class="status-box" id="fullscreen-target">
-        <button onclick="toggleFullscreen()" class="btn btn-red-outline show-on-fullscreen" style="position: absolute; top: 20px; right: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">❌ ออกจากเต็มจอ (Cancel Fullscreen)</button>
+        <button onclick="toggleFullscreen()" class="btn btn-red-outline show-on-fullscreen" style="position: absolute; top: 20px; right: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">❌ ออกจากเต็มจอ (Cancel)</button>
 
         <div class="status-line hide-on-fullscreen"><strong>สถานะเกม:</strong>&nbsp;<span id="game-status-text">กำลังโหลด...</span></div>
         
@@ -114,6 +114,11 @@
         </div>
 
         <div id="timer-display" class="timer-box">⏱️ เวลาที่เหลือ: 120 วินาที</div>
+        
+        <div class="timer-setting hide-on-fullscreen" id="timer-setting-container">
+            <label for="custom-time-input">ตั้งเวลาสำหรับข้อถัดไป:</label>
+            <input type="number" id="custom-time-input" class="timer-input" value="120" min="10" max="600"> วินาที
+        </div>
         
         <div id="answer-box" class="answer-box">🎯 เฉลยคำตอบ: <span id="answer-text">-</span></div>
         
@@ -132,22 +137,25 @@
         <button onclick="resumeTimer()" class="btn btn-green" id="btn-resume" style="display: none;">▶️ นับเวลาต่อ (Resume)</button>
     </div>
 
-    <button onclick="controlGame('/api/timeout')" class="btn btn-orange" id="btn-timeout" style="display: none;">⏱️ หมดเวลาข้อนี้ (Timeout)</button>
-    <button onclick="controlGame('/api/next')" class="btn btn-blue" id="btn-next" style="display: none;">⏩ ข้อถัดไป (Next Question)</button>
+    <button onclick="controlGame('/api/timeout')" class="btn btn-orange" id="btn-timeout" style="display: none;">⏱️ บังคับหมดเวลาข้อนี้ (Timeout)</button>
+    <button onclick="controlGame('/api/next')" class="btn btn-blue" id="btn-next" style="display: none;">⏩ ไปข้อถัดไป (Next Question)</button>
     
-    <button onclick="openScoreModal()" class="btn btn-purple">📊 กดดูคะแนนทีม (View Scores)</button>
+    <button onclick="openScoreModal()" class="btn btn-purple">📊 กดดูตารางคะแนน (View Scores)</button>
+    
     <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
-    <button onclick="controlGame('/api/reset')" class="btn btn-red-outline" id="btn-reset">🔄 รีเซ็ตระบบเกมทั้งหมด (Reset)</button>
+    <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกม (Reset All)</button>
 </div>
 
 <div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
     <div class="modal-content">
         <button class="close-modal-btn" onclick="closeScoreModal()">&times;</button>
         <h3 style="margin-top: 0;">🏆 ตารางคะแนนรวมทีม</h3>
-        <table class="score-table">
-            <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
-            <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
-        </table>
+        <div style="max-height: 300px; overflow-y: auto;">
+            <table class="score-table">
+                <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
+                <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
+            </table>
+        </div>
         <button onclick="closeScoreModal()" class="btn btn-blue" style="margin-top: 20px; margin-bottom: 0;">ปิด</button>
     </div>
 </div>
@@ -158,7 +166,7 @@
         <h3 style="margin-top: 0; font-size: 20px; color: #333;">📁 นำเข้าชุดคำถามใหม่</h3>
         
         <label style="font-weight: bold; font-size: 14px; color: #555;">1. ดึงข้อมูลจาก Google Sheets (แนะนำ)</label>
-        <input type="text" id="gsheet-url" placeholder="วางลิงก์ที่แชร์เป็นสาธารณะ (Anyone with the link) ที่นี่..." style="margin-top: 8px; margin-bottom: 10px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <input type="text" id="gsheet-url" placeholder="วางลิงก์ที่แชร์เป็นสาธารณะ ที่นี่..." style="margin-top: 8px; margin-bottom: 10px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <button onclick="importGoogleSheet()" class="btn btn-green" id="btn-gsheet" style="width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px;">📊 โหลดข้อมูลจาก Google Sheets</button>
 
         <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
@@ -187,22 +195,17 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
-    // 📌 ระบบเปิด/ปิด Modal อัปโหลดโจทย์
+    // 📌 ระบบเปิด/ปิด Modal 
     function openEditModal() { document.getElementById('upload-modal').style.display = 'flex'; }
     function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
     function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
 
-    // 📌 ฟังก์ชันดึงโจทย์จาก Google Sheets
     function importGoogleSheet() {
         const urlInput = document.getElementById('gsheet-url').value.trim();
-        if (!urlInput) {
-            alert("⚠️ กรุณาวางลิงก์ Google Sheets ก่อนครับ");
-            return;
-        }
-
+        if (!urlInput) { alert("⚠️ กรุณาวางลิงก์ Google Sheets ก่อนครับ"); return; }
+        
         const btnGsheet = document.getElementById('btn-gsheet');
-        btnGsheet.disabled = true;
-        btnGsheet.innerText = "กำลังดึงข้อมูล...";
+        btnGsheet.disabled = true; btnGsheet.innerText = "กำลังดึงข้อมูล...";
 
         fetch('/api/import-gsheet', {
             method: 'POST',
@@ -218,54 +221,31 @@
                 checkGameState();
             }
         })
-        .catch(err => {
-            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
-            console.error(err);
-        })
-        .finally(() => {
-            btnGsheet.disabled = false;
-            btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets";
-        });
+        .catch(err => { alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ"); console.error(err); })
+        .finally(() => { btnGsheet.disabled = false; btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets"; });
     }
 
-    // 📌 ฟังก์ชันอัปโหลดโจทย์จากไฟล์
     function uploadQuestions() {
         const fileInput = document.getElementById('question-file');
         const file = fileInput.files[0];
-        
-        if (!file) {
-            alert("⚠️ กรุณาเลือกไฟล์ .json, .csv, .pdf, .docx หรือ .md ก่อนอัปโหลด");
-            return;
-        }
+        if (!file) { alert("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด"); return; }
 
         const formData = new FormData();
         formData.append("file", file);
 
         const btnUpload = document.getElementById('btn-upload');
-        btnUpload.disabled = true;
-        btnUpload.innerText = "กำลังอัปโหลด...";
+        btnUpload.disabled = true; btnUpload.innerText = "กำลังอัปโหลด...";
 
-        fetch('/api/upload-questions', {
-            method: 'POST',
-            body: formData
-        })
+        fetch('/api/upload-questions', { method: 'POST', body: formData })
         .then(res => res.json())
         .then(data => {
             alert(data.message);
             if (data.status === "success") {
-                fileInput.value = ""; // เคลียร์ช่องเลือกไฟล์
-                closeEditModal();     // ปิด Pop-up
-                checkGameState();     // ดึงสถานะปัจจุบันมาแสดงใหม่
+                fileInput.value = ""; closeEditModal(); checkGameState();
             }
         })
-        .catch(err => {
-            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
-            console.error(err);
-        })
-        .finally(() => {
-            btnUpload.disabled = false;
-            btnUpload.innerText = "📤 อัปโหลดไฟล์จากเครื่อง";
-        });
+        .catch(err => { alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ"); console.error(err); })
+        .finally(() => { btnUpload.disabled = false; btnUpload.innerText = "📤 อัปโหลดไฟล์จากเครื่อง"; });
     }
 
     function toggleFullscreen() {
@@ -298,12 +278,20 @@
         } else {
             clearInterval(countdownInterval);
             countdownInterval = null;
+            // เมื่อเวลาในฝั่ง Client หมด ส่ง API บอกเซิร์ฟเวอร์ด้วย (ถ้าจำเป็น)
+            // controlGame('/api/timeout'); 
         }
     }
 
     function startTimer(resetTime = true) {
         if (countdownInterval) clearInterval(countdownInterval);
-        if (resetTime) timeLeft = 120;
+        
+        if (resetTime) {
+            // 📌 ดึงค่าเวลาจากช่องที่แอดมินกรอก
+            const customTime = parseInt(document.getElementById('custom-time-input').value);
+            timeLeft = !isNaN(customTime) && customTime > 0 ? customTime : 120;
+        }
+        
         isPaused = false;
         document.getElementById('btn-pause').style.display = 'block';
         document.getElementById('btn-resume').style.display = 'none';
@@ -339,6 +327,13 @@
         });
     }
 
+    // 📌 ยืนยันการรีเซ็ตระบบ
+    function confirmReset() {
+        if(confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลคะแนนและรีเซ็ตระบบเกมทั้งหมดใช่หรือไม่? (การกระทำนี้ย้อนกลับไม่ได้)")) {
+            controlGame('/api/reset');
+        }
+    }
+
     function renderUI(data) {
         if (!data) return;
         
@@ -352,13 +347,15 @@
         const answerBox = document.getElementById('answer-box');
         const answerText = document.getElementById('answer-text');
         const statsBox = document.getElementById('stats-box');
-        const correctCount = document.getElementById('correct-count');
-        const incorrectCount = document.getElementById('incorrect-count');
+        const timerSettingContainer = document.getElementById('timer-setting-container');
 
         if (data.school_scores) activeScores = data.school_scores;
 
         if (data.is_started) {
             document.getElementById('btn-start').style.display = 'none';
+            // ซ่อนช่องตั้งเวลาเมื่อเกมเริ่มแล้ว
+            timerSettingContainer.style.display = 'none'; 
+            
             if (data.is_time_up || data.is_end) {
                 document.getElementById('btn-timeout').style.display = 'none';
                 document.getElementById('btn-next').style.display = data.is_end ? 'none' : 'block';
@@ -373,6 +370,8 @@
             document.getElementById('btn-timeout').style.display = 'none';
             document.getElementById('btn-next').style.display = 'none';
             timerControlGroup.style.display = 'none';
+            timerSettingContainer.style.display = 'block'; // แสดงช่องตั้งเวลาเมื่อยังไม่เริ่ม
+            
             if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
             document.getElementById('timer-display').innerText = `⏳ ระบบยังไม่ได้เริ่มเกม`;
             lastQuestionNumber = 0;
@@ -391,12 +390,11 @@
         }
 
         if (data.is_started && (data.is_time_up || data.is_end)) {
-            // ระบบเฉลยจะดึงค่า data.answer จาก Backend เท่านั้น 
             answerText.innerText = data.answer || 'ไม่มีข้อมูลเฉลย';
             answerBox.style.display = 'block';
             
-            correctCount.innerText = data.correct_count !== undefined ? data.correct_count : '-';
-            incorrectCount.innerText = data.incorrect_count !== undefined ? data.incorrect_count : '-';
+            document.getElementById('correct-count').innerText = data.correct_count !== undefined ? data.correct_count : '-';
+            document.getElementById('incorrect-count').innerText = data.incorrect_count !== undefined ? data.incorrect_count : '-';
             statsBox.style.display = 'flex'; 
         } else {
             answerBox.style.display = 'none';
@@ -411,10 +409,10 @@
             questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
         } else if (data.is_time_up) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
-            questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
+            questionInfo.innerText = `ข้อที่ ${data.current_number}: ${data.question}`;
         } else {
             statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
-            questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
+            questionInfo.innerText = `ข้อที่ ${data.current_number}: ${data.question}`;
         }
     }
 
@@ -423,7 +421,17 @@
         isActionInProgress = true;
         toggleButtonsState(true);
 
-        fetch(url, { method: 'POST' })
+        // ถ้าเป็นการ Start หรือ Next ให้ส่งค่าเวลาใหม่ไปด้วย (ออปชันเสริมสำหรับ Backend)
+        const requestData = {};
+        if (url === '/api/start' || url === '/api/next') {
+            requestData.time_limit = parseInt(document.getElementById('custom-time-input').value) || 120;
+        }
+
+        fetch(url, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: Object.keys(requestData).length > 0 ? JSON.stringify(requestData) : null
+        })
         .then(res => res.json())
         .then(resData => {
             if (resData.status === "success" && resData.state) {

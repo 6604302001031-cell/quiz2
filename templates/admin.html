@@ -155,16 +155,24 @@
 <div id="upload-modal" class="modal-overlay" onclick="closeEditModalOutside(event)">
     <div class="modal-content" style="text-align: left;">
         <button class="close-modal-btn" onclick="closeEditModal()">&times;</button>
-        <h4 style="margin-top: 0; font-size: 18px; color: #333;">📁 อัปโหลดชุดคำถามใหม่</h4>
+        <h3 style="margin-top: 0; font-size: 20px; color: #333;">📁 นำเข้าชุดคำถามใหม่</h3>
         
-        <input type="file" id="question-file" accept=".json, .pdf" style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
-        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดและเริ่มใหม่</button>
+        <label style="font-weight: bold; font-size: 14px; color: #555;">1. ดึงข้อมูลจาก Google Sheets (แนะนำ)</label>
+        <input type="text" id="gsheet-url" placeholder="วางลิงก์ที่แชร์เป็นสาธารณะ (Anyone with the link) ที่นี่..." style="margin-top: 8px; margin-bottom: 10px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <button onclick="importGoogleSheet()" class="btn btn-green" id="btn-gsheet" style="width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px;">📊 โหลดข้อมูลจาก Google Sheets</button>
+
+        <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
+
+        <label style="font-weight: bold; font-size: 14px; color: #555;">2. อัปโหลดจากไฟล์ในเครื่อง</label>
+        <input type="file" id="question-file" accept=".json, .pdf, .csv, .docx, .md" style="margin-top: 8px; margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดไฟล์จากเครื่อง</button>
         
         <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
-            <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์ที่รองรับ:</strong></p>
+            <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์/ข้อมูลที่รองรับ:</strong></p>
             <ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
-                <li><b>.json</b> - โครงสร้างจะต้องเป็น List: <br><code>[{"q": "โจทย์ข้อ 1", "a": "เฉลย"}, ...]</code></li>
-                <li><b>.pdf</b> - สำหรับอัปโหลดไฟล์เอกสารโจทย์</li>
+                <li><b>Google Sheets / .csv</b> - คอลัมน์แรกเป็นโจทย์ คอลัมน์สองเป็นเฉลย</li>
+                <li><b>.json</b> - โครงสร้าง List: <code>[{"q": "คำถาม", "a": "เฉลย"}]</code></li>
+                <li><b>.pdf / .docx / .md</b> - พิมพ์คำว่า "โจทย์:" และ "เฉลย:" กำกับ</li>
             </ul>
         </div>
     </div>
@@ -184,14 +192,49 @@
     function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
     function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
 
-    // 📌 ฟังก์ชันอัปโหลดโจทย์
+    // 📌 ฟังก์ชันดึงโจทย์จาก Google Sheets
+    function importGoogleSheet() {
+        const urlInput = document.getElementById('gsheet-url').value.trim();
+        if (!urlInput) {
+            alert("⚠️ กรุณาวางลิงก์ Google Sheets ก่อนครับ");
+            return;
+        }
+
+        const btnGsheet = document.getElementById('btn-gsheet');
+        btnGsheet.disabled = true;
+        btnGsheet.innerText = "กำลังดึงข้อมูล...";
+
+        fetch('/api/import-gsheet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: urlInput })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            if (data.status === "success") {
+                document.getElementById('gsheet-url').value = "";
+                closeEditModal();
+                checkGameState();
+            }
+        })
+        .catch(err => {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+            console.error(err);
+        })
+        .finally(() => {
+            btnGsheet.disabled = false;
+            btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets";
+        });
+    }
+
+    // 📌 ฟังก์ชันอัปโหลดโจทย์จากไฟล์
     function uploadQuestions() {
         const fileInput = document.getElementById('question-file');
         const file = fileInput.files[0];
         
         if (!file) {
-            // 📌 แก้ไขข้อความแจ้งเตือนให้อิงตามไฟล์ที่รองรับ
-            alert("⚠️ กรุณาเลือกไฟล์ .json หรือ .pdf ก่อนอัปโหลด");
+            alert("⚠️ กรุณาเลือกไฟล์ .json, .csv, .pdf, .docx หรือ .md ก่อนอัปโหลด");
             return;
         }
 
@@ -221,7 +264,7 @@
         })
         .finally(() => {
             btnUpload.disabled = false;
-            btnUpload.innerText = "📤 อัปโหลดและเริ่มใหม่";
+            btnUpload.innerText = "📤 อัปโหลดไฟล์จากเครื่อง";
         });
     }
 

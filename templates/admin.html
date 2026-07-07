@@ -45,12 +45,12 @@
             font-weight: normal;
         }
 
-        /* 📌 สไตล์กล่องแสดงรูปภาพโจทย์ */
+        /* 📌 เพิ่มใหม่: สไตล์กล่องแสดงรูปภาพโจทย์ */
         .question-image-box {
             margin-top: 12px;
             text-align: center;
             width: 100%;
-            display: none;
+            display: none; /* ซ่อนไว้ก่อน ถ้ามีรูปค่อยเปิดด้วย JS */
         }
         .question-image-box img {
             max-width: 100%;
@@ -131,7 +131,7 @@
             max-width: 95% !important;
         }
 
-        /* 📌 ปรับขนาดรูปภาพโจทย์ตอน Fullscreen ให้ใหญ่สะใจอ่านง่าย */
+        /* 📌 เพิ่มใหม่: ปรับขนาดรูปภาพโจทย์ตอน Fullscreen ให้ใหญ่สะใจอ่านง่าย */
         #fullscreen-target:fullscreen .question-image-box {
             display: block !important;
             margin: 10px 0 20px 0 !important;
@@ -209,7 +209,7 @@
     <button onclick="openScoreModal()" class="btn btn-purple">📊 กดดูตารางคะแนน (View Scores)</button>
     
     <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
-    <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกมทั้งหมด (Reset All)</button>
+    <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกม (Reset All)</button>
 </div>
 
 <div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
@@ -238,7 +238,7 @@
         <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
 
         <label style="font-weight: bold; font-size: 14px; color: #555;">2. อัปโหลดจากไฟล์ในเครื่อง</label>
-        <input type="file" id="question-file" accept=".json, .pdf, .csv, .docx, .md" style="margin-top: 8px; margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <input type="file" id="question-file" accept=".json, .pdf, .csv, .docx, .md, .jpg, .jpeg, .png, .webp" style="margin-top: 8px; margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดไฟล์จากเครื่อง</button>
         
         <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
@@ -247,6 +247,7 @@
                 <li><b>Google Sheets / .csv</b> - คอลัมน์แรกเป็นโจทย์ คอลัมน์สองเป็นเฉลย และคอลัมน์สามเป็นลิงก์รูปภาพ (ถ้ามี)</li>
                 <li><b>.json</b> - โครงสร้าง List: <code>[{"q": "คำถาม", "a": "เฉลย", "image_url": "ลิงก์รูปภาพ"}]</code></li>
                 <li><b>.pdf / .docx / .md</b> - พิมพ์คำว่า "โจทย์:" และ "เฉลย:" กำกับ</li>
+                <li><b>.jpg / .png / .webp</b> - สำหรับอัปโหลดโจทย์ที่เป็นไฟล์รูปภาพโดยตรง</li>
             </ul>
         </div>
     </div>
@@ -361,13 +362,18 @@
         countdownInterval = setInterval(runCountdown, 1000);
     }
 
-    /* 📌 ปรับปรุงใหม่: เปลี่ยนให้ส่งคำสั่งหยุด/เล่นต่อ ไปทำงานที่หลังบ้านแบบ Real-time ร่วมกับห้องผู้เล่น */
     function pauseTimer() {
-        controlGame('/api/pause');
+        isPaused = true;
+        document.getElementById('btn-pause').style.display = 'none';
+        document.getElementById('btn-resume').style.display = 'block';
+        updateTimerDisplay();
     }
 
-    function runResumeTimer() { 
-        controlGame('/api/resume');
+    function runResumeTimer() {
+        isPaused = false;
+        document.getElementById('btn-pause').style.display = 'block';
+        document.getElementById('btn-resume').style.display = 'none';
+        updateTimerDisplay();
     }
     window.resumeTimer = runResumeTimer;
 
@@ -424,15 +430,6 @@
                 document.getElementById('btn-timeout').style.display = 'block';
                 document.getElementById('btn-next').style.display = 'none';
                 timerControlGroup.style.display = 'flex';
-
-                /* 📌 ซิงค์สถานะการเปิด/ปิดปุ่ม Pause-Resume ตามค่าที่ส่งมาจากเซิร์ฟเวอร์ */
-                if (data.is_paused) {
-                    document.getElementById('btn-pause').style.display = 'none';
-                    document.getElementById('btn-resume').style.display = 'block';
-                } else {
-                    document.getElementById('btn-pause').style.display = 'block';
-                    document.getElementById('btn-resume').style.display = 'none';
-                }
             }
         } else {
             document.getElementById('btn-start').style.display = 'block';
@@ -446,27 +443,10 @@
             lastQuestionNumber = 0;
         }
 
-        /* 📌 ปรับปรุงใหม่: ดึงเวลาและสถานะหยุดเวลาจากเซิร์ฟเวอร์มาป้องกันบั๊กเวลากระโดดเมื่อเปิดแท็บใหม่/รีเฟรชหน้า */
         if (data.is_started && !data.is_time_up && !data.is_end) {
-            isPaused = data.is_paused || false;
-
             if (data.current_number !== lastQuestionNumber) {
                 lastQuestionNumber = data.current_number;
-                if (data.time_left !== undefined) {
-                    timeLeft = data.time_left;
-                } else {
-                    const customTime = parseInt(document.getElementById('custom-time-input').value);
-                    timeLeft = !isNaN(customTime) && customTime > 0 ? customTime : 120;
-                }
-            } else {
-                if (data.time_left !== undefined) {
-                    timeLeft = data.time_left;
-                }
-            }
-            updateTimerDisplay();
-
-            if (!countdownInterval) {
-                countdownInterval = setInterval(runCountdown, 1000);
+                startTimer(true);
             }
         }
 
@@ -502,11 +482,8 @@
             questionInfo.style.fontWeight = 'bold';
             questionImgBox.style.display = 'none';
         } else {
-            /* 📌 ปรับปรุงใหม่: เพิ่มเงื่อนไขจุดไฟสีเหลืองกะพริบแจ้งเตือนสถานะเมื่อกด Pause */
             if (data.is_time_up) {
                 statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
-            } else if (data.is_paused) {
-                statusText.innerHTML = '<span class="status-dot dot-yellow"></span> หยุดเวลาชั่วคราว';
             } else {
                 statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
             }

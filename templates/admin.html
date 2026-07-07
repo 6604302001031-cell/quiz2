@@ -12,7 +12,6 @@
         .admin-info span { color: #2196f3; }
         .btn-logout { background-color: #dc3545; color: white; padding: 7px 14px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
         
-        /* 📌 สไตล์สำหรับกล่องแสดงจำนวนผู้ใช้งานออนไลน์ */
         .online-status {
             font-size: 14px;
             font-weight: bold;
@@ -34,10 +33,8 @@
         .dot-yellow { background-color: #f1c40f; }
         .timer-box { background-color: #fff9db; border: 1px solid #ffe3e3; padding: 12px; border-radius: 6px; font-size: 22px; font-weight: bold; color: #d9480f; text-align: center; margin-top: 15px; }
         
-        /* 🎯 สไตล์กล่องเฉลยคำตอบ */
         .answer-box { background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; font-size: 20px; font-weight: bold; color: #155724; text-align: center; margin-top: 15px; display: none; }
         
-        /* 📊 สไตล์กล่องสถิติถูก/ผิด */
         .stats-box { display: flex; justify-content: center; gap: 15px; margin-top: 15px; display: none; }
         .stat-item { flex: 1; padding: 12px; border-radius: 8px; font-size: 18px; font-weight: bold; text-align: center; }
         .stat-correct { background-color: #e6f4ea; color: #1e8e3e; border: 1px solid #ceead6; }
@@ -60,9 +57,14 @@
         .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
         .score-table th { background-color: #f1f3f5; }
 
+        /* 📁 กล่องอัปโหลดไฟล์โจทย์ */
+        .upload-box { background: #fdfdfd; padding: 15px; border-radius: 8px; border: 1px dashed #ced4da; margin-bottom: 25px; text-align: left; }
+        .upload-box h4 { margin: 0 0 10px 0; color: #495057; font-size: 16px; }
+        .upload-box input[type="file"] { display: block; margin-bottom: 10px; width: 100%; font-size: 14px; }
+        .upload-box .help-text { font-size: 12px; color: #6c757d; margin-top: 8px; margin-bottom: 0; }
+
         .show-on-fullscreen { display: none; } 
 
-        /* 🖥️ สไตล์เมื่อเปิดโหมด Fullscreen */
         #fullscreen-target:fullscreen {
             background-color: #ffffff !important;
             display: flex !important;
@@ -86,35 +88,10 @@
             margin: auto 0 20px 0 !important;
             max-width: 90% !important;
         }
-        #fullscreen-target:fullscreen .timer-box {
-            font-size: 65px !important;
-            padding: 25px 60px !important;
-            border-radius: 16px !important;
-            width: 80% !important;
-            max-width: 750px !important;
-            margin-top: 20px !important;
-            margin-bottom: 20px !important;
-        }
-        #fullscreen-target:fullscreen .answer-box {
-            font-size: 45px !important;
-            padding: 25px 50px !important;
-            border-radius: 16px !important;
-            width: 80% !important;
-            max-width: 750px !important;
-            margin-top: 20px !important;
-        }
-        #fullscreen-target:fullscreen .stats-box {
-            width: 80% !important;
-            max-width: 750px !important;
-            margin-top: 25px !important;
-            margin-bottom: auto !important;
-            gap: 30px !important;
-        }
-        #fullscreen-target:fullscreen .stat-item {
-            font-size: 38px !important;
-            padding: 25px 20px !important;
-            border-radius: 16px !important;
-        }
+        #fullscreen-target:fullscreen .timer-box { font-size: 65px !important; padding: 25px 60px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; margin-bottom: 20px !important; }
+        #fullscreen-target:fullscreen .answer-box { font-size: 45px !important; padding: 25px 50px !important; border-radius: 16px !important; width: 80% !important; max-width: 750px !important; margin-top: 20px !important; }
+        #fullscreen-target:fullscreen .stats-box { width: 80% !important; max-width: 750px !important; margin-top: 25px !important; margin-bottom: auto !important; gap: 30px !important; }
+        #fullscreen-target:fullscreen .stat-item { font-size: 38px !important; padding: 25px 20px !important; border-radius: 16px !important; }
     </style>
 </head>
 <body>
@@ -122,15 +99,18 @@
 <div class="admin-container">
     <div class="admin-header-bar">
         <div class="admin-info">👤 แอดมิน: <span>{{ session.name }}</span></div>
-        
-        <div class="online-status">
-            🟢 ออนไลน์: <span id="online-users-count">0</span> คน
-        </div>
-
+        <div class="online-status">🟢 ออนไลน์: <span id="online-users-count">0</span> คน</div>
         <a href="/logout" class="btn-logout">🚪 ออกจากระบบ</a>
     </div>
 
     <h2>👑 ระบบควบคุมเกม (แอดมิน)</h2>
+
+    <div class="upload-box hide-on-fullscreen">
+        <h4>📁 อัปโหลดชุดคำถามใหม่ (ไฟล์ .json)</h4>
+        <input type="file" id="question-file" accept=".json">
+        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="padding: 10px; font-size: 14px; margin-bottom: 0;">📤 อัปโหลดและเริ่มใหม่</button>
+        <p class="help-text">* โครงสร้างไฟล์จะต้องเป็น List: <code>[{"q": "โจทย์ข้อ 1", "a": "เฉลย"}, ...]</code></p>
+    </div>
 
     <div class="status-box" id="fullscreen-target">
         <button onclick="toggleFullscreen()" class="btn btn-red-outline show-on-fullscreen" style="position: absolute; top: 20px; right: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">❌ ออกจากเต็มจอ (Cancel Fullscreen)</button>
@@ -185,18 +165,49 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
-    // 🔑 คลังเฉลยคำตอบประจำข้อ
-    const gameAnswers = {
-        1: "10",
-        2: "2"
-    };
+    // 📌 ฟังก์ชันอัปโหลดโจทย์
+    function uploadQuestions() {
+        const fileInput = document.getElementById('question-file');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert("⚠️ กรุณาเลือกไฟล์ .json ก่อนอัปโหลด");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const btnUpload = document.getElementById('btn-upload');
+        btnUpload.disabled = true;
+        btnUpload.innerText = "กำลังอัปโหลด...";
+
+        fetch('/api/upload-questions', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            if (data.status === "success") {
+                fileInput.value = ""; // เคลียร์ช่องเลือกไฟล์
+                checkGameState(); // ดึงสถานะปัจจุบันมาแสดงใหม่
+            }
+        })
+        .catch(err => {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+            console.error(err);
+        })
+        .finally(() => {
+            btnUpload.disabled = false;
+            btnUpload.innerText = "📤 อัปโหลดและเริ่มใหม่";
+        });
+    }
 
     function toggleFullscreen() {
         const elem = document.getElementById('fullscreen-target');
         if (!document.fullscreenElement) {
-            elem.requestFullscreen().catch(err => {
-                alert(`ไม่สามารถเปิดโหมดเต็มจอได้: ${err.message}`);
-            });
+            elem.requestFullscreen().catch(err => alert(`ไม่สามารถเปิดโหมดเต็มจอได้: ${err.message}`));
         } else {
             document.exitFullscreen();
         }
@@ -267,7 +278,6 @@
     function renderUI(data) {
         if (!data) return;
         
-        // 📌 รับตัวเลขผู้ใช้งานออนไลน์ที่แนบมาแสดงผล
         if (data.active_users_count !== undefined) {
             document.getElementById('online-users-count').innerText = data.active_users_count;
         }
@@ -281,9 +291,7 @@
         const correctCount = document.getElementById('correct-count');
         const incorrectCount = document.getElementById('incorrect-count');
 
-        if (data.school_scores) {
-            activeScores = data.school_scores;
-        }
+        if (data.school_scores) activeScores = data.school_scores;
 
         if (data.is_started) {
             document.getElementById('btn-start').style.display = 'none';
@@ -318,20 +326,15 @@
             document.getElementById('timer-display').innerText = data.is_end ? `🏁 จบการแข่งขันแล้ว` : `🔒 หมดเวลาส่งคำตอบแล้ว`;
         }
 
-        /* 🌟 เงื่อนไขการดึงคำตอบเฉลยและสถิติมาแสดง */
         if (data.is_started && (data.is_time_up || data.is_end)) {
-            // แสดงคำตอบ
-            const currentAns = gameAnswers[data.current_number] || data.answer || 'ไม่มีข้อมูลเฉลย';
-            answerText.innerText = currentAns;
+            // ระบบเฉลยจะดึงค่า data.answer จาก Backend เท่านั้น 
+            answerText.innerText = data.answer || 'ไม่มีข้อมูลเฉลย';
             answerBox.style.display = 'block';
             
-            // แสดงสถิติ
             correctCount.innerText = data.correct_count !== undefined ? data.correct_count : '-';
             incorrectCount.innerText = data.incorrect_count !== undefined ? data.incorrect_count : '-';
-            // ใช้ display: flex เพื่อให้กล่องสถิติเรียงตัวสวยงาม
             statsBox.style.display = 'flex'; 
         } else {
-            // ซ่อนตอนกำลังจับเวลา
             answerBox.style.display = 'none';
             statsBox.style.display = 'none';
         }

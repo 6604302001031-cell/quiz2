@@ -50,6 +50,7 @@
         .btn-red-outline { background-color: white; color: #f44336; border: 1px solid #f44336; }
         .timer-btn-group { display: flex; gap: 10px; margin-bottom: 12px; }
         .timer-btn-group .btn { margin-bottom: 0; }
+        
         .modal-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; }
         .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; }
         .close-modal-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; border: none; background: none; }
@@ -57,11 +58,9 @@
         .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
         .score-table th { background-color: #f1f3f5; }
 
-        /* 📁 กล่องอัปโหลดไฟล์โจทย์ */
-        .upload-box { background: #fdfdfd; padding: 15px; border-radius: 8px; border: 1px dashed #ced4da; margin-bottom: 25px; text-align: left; }
-        .upload-box h4 { margin: 0 0 10px 0; color: #495057; font-size: 16px; }
-        .upload-box input[type="file"] { display: block; margin-bottom: 10px; width: 100%; font-size: 14px; }
-        .upload-box .help-text { font-size: 12px; color: #6c757d; margin-top: 8px; margin-bottom: 0; }
+        /* 📌 สไตล์สำหรับปุ่มดินสอแก้ไขโจทย์ */
+        .edit-icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px; padding: 0; transition: transform 0.2s; display: inline-block; }
+        .edit-icon-btn:hover { transform: scale(1.2); }
 
         .show-on-fullscreen { display: none; } 
 
@@ -105,18 +104,16 @@
 
     <h2>👑 ระบบควบคุมเกม (แอดมิน)</h2>
 
-    <div class="upload-box hide-on-fullscreen">
-        <h4>📁 อัปโหลดชุดคำถามใหม่ (ไฟล์ .json)</h4>
-        <input type="file" id="question-file" accept=".json">
-        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="padding: 10px; font-size: 14px; margin-bottom: 0;">📤 อัปโหลดและเริ่มใหม่</button>
-        <p class="help-text">* โครงสร้างไฟล์จะต้องเป็น List: <code>[{"q": "โจทย์ข้อ 1", "a": "เฉลย"}, ...]</code></p>
-    </div>
-
     <div class="status-box" id="fullscreen-target">
         <button onclick="toggleFullscreen()" class="btn btn-red-outline show-on-fullscreen" style="position: absolute; top: 20px; right: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">❌ ออกจากเต็มจอ (Cancel Fullscreen)</button>
 
         <div class="status-line hide-on-fullscreen"><strong>สถานะเกม:</strong>&nbsp;<span id="game-status-text">กำลังโหลด...</span></div>
-        <div class="status-line" id="question-info" style="font-weight: bold; color: #495057;">โจทย์ปัจจุบัน: กำลังโหลด...</div>
+        
+        <div class="status-line" style="display: flex; align-items: center; justify-content: flex-start;">
+            <div id="question-info" style="font-weight: bold; color: #495057;">โจทย์ปัจจุบัน: กำลังโหลด...</div>
+            <button class="edit-icon-btn hide-on-fullscreen" onclick="openEditModal()" title="อัปโหลด/แก้ไขโจทย์">✏️</button>
+        </div>
+
         <div id="timer-display" class="timer-box">⏱️ เวลาที่เหลือ: 120 วินาที</div>
         
         <div id="answer-box" class="answer-box">🎯 เฉลยคำตอบ: <span id="answer-text">-</span></div>
@@ -156,6 +153,25 @@
     </div>
 </div>
 
+<div id="upload-modal" class="modal-overlay" onclick="closeEditModalOutside(event)">
+    <div class="modal-content" style="text-align: left;">
+        <button class="close-modal-btn" onclick="closeEditModal()">&times;</button>
+        <h4 style="margin-top: 0; font-size: 18px; color: #333;">📁 อัปโหลดชุดคำถามใหม่</h4>
+        
+        <input type="file" id="question-file" accept=".json, .csv, .docx, .md" style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <button onclick="uploadQuestions()" class="btn btn-blue" id="btn-upload" style="width: 100%; padding: 12px; font-size: 16px;">📤 อัปโหลดและเริ่มใหม่</button>
+        
+        <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์ที่รองรับ:</strong></p>
+            <ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
+                <li><b>.json</b> - โครงสร้าง <code>[{"q": "โจทย์", "a": "เฉลย"}]</code></li>
+                <li><b>.csv</b> - คอลัมน์แรก = โจทย์, คอลัมน์สอง = เฉลย</li>
+                <li><b>.docx / .md</b> - พิมพ์ "Q: โจทย์" บรรทัดถัดมา "A: เฉลย"</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
 <script>
     let lastQuestionNumber = 0;
     let timeLeft = 120;
@@ -165,13 +181,18 @@
     let isActionInProgress = false;
     let activeScores = {}; 
 
-    // 📌 ฟังก์ชันอัปโหลดโจทย์
+    // 📌 ระบบเปิด/ปิด Modal อัปโหลดโจทย์
+    function openEditModal() { document.getElementById('upload-modal').style.display = 'flex'; }
+    function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
+    function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
+
+    // 📌 ฟังก์ชันอัปโหลดโจทย์ (อัปเดตให้ปิด Modal เมื่อสำเร็จ)
     function uploadQuestions() {
         const fileInput = document.getElementById('question-file');
         const file = fileInput.files[0];
         
         if (!file) {
-            alert("⚠️ กรุณาเลือกไฟล์ .json ก่อนอัปโหลด");
+            alert("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด");
             return;
         }
 
@@ -191,7 +212,8 @@
             alert(data.message);
             if (data.status === "success") {
                 fileInput.value = ""; // เคลียร์ช่องเลือกไฟล์
-                checkGameState(); // ดึงสถานะปัจจุบันมาแสดงใหม่
+                closeEditModal();     // ปิด Pop-up
+                checkGameState();     // ดึงสถานะปัจจุบันมาแสดงใหม่
             }
         })
         .catch(err => {
@@ -199,201 +221,3 @@
             console.error(err);
         })
         .finally(() => {
-            btnUpload.disabled = false;
-            btnUpload.innerText = "📤 อัปโหลดและเริ่มใหม่";
-        });
-    }
-
-    function toggleFullscreen() {
-        const elem = document.getElementById('fullscreen-target');
-        if (!document.fullscreenElement) {
-            elem.requestFullscreen().catch(err => alert(`ไม่สามารถเปิดโหมดเต็มจอได้: ${err.message}`));
-        } else {
-            document.exitFullscreen();
-        }
-    }
-
-    function updateTimerDisplay() {
-        const timerDisplay = document.getElementById('timer-display');
-        if (timeLeft <= 0) {
-            timerDisplay.innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
-            return;
-        }
-        if (isPaused) {
-            timerDisplay.innerText = `⏸️ หยุดเวลาชั่วคราว: ${timeLeft} วินาที`;
-            return;
-        }
-        timerDisplay.innerText = `⏱️ เวลาที่เหลือ: ${timeLeft} วินาที`;
-    }
-
-    function runCountdown() {
-        if (isPaused) return;
-        if (timeLeft > 0) {
-            timeLeft--;
-            updateTimerDisplay();
-        } else {
-            clearInterval(countdownInterval);
-            countdownInterval = null;
-        }
-    }
-
-    function startTimer(resetTime = true) {
-        if (countdownInterval) clearInterval(countdownInterval);
-        if (resetTime) timeLeft = 120;
-        isPaused = false;
-        document.getElementById('btn-pause').style.display = 'block';
-        document.getElementById('btn-resume').style.display = 'none';
-        updateTimerDisplay();
-        countdownInterval = setInterval(runCountdown, 1000);
-    }
-
-    function pauseTimer() {
-        isPaused = true;
-        document.getElementById('btn-pause').style.display = 'none';
-        document.getElementById('btn-resume').style.display = 'block';
-        updateTimerDisplay();
-    }
-
-    function resumeTimer() {
-        isPaused = false;
-        document.getElementById('btn-pause').style.display = 'block';
-        document.getElementById('btn-resume').style.display = 'none';
-        updateTimerDisplay();
-    }
-
-    function openScoreModal() { 
-        updateScoreBoard(activeScores);
-        document.getElementById('score-modal').style.display = 'flex'; 
-    }
-    function closeScoreModal() { document.getElementById('score-modal').style.display = 'none'; }
-    function closeScoreModalOutside(e) { if (e.target.id === 'score-modal') closeScoreModal(); }
-
-    function toggleButtonsState(disabled) {
-        ['btn-start', 'btn-pause', 'btn-resume', 'btn-timeout', 'btn-next', 'btn-reset'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.disabled = disabled;
-        });
-    }
-
-    function renderUI(data) {
-        if (!data) return;
-        
-        if (data.active_users_count !== undefined) {
-            document.getElementById('online-users-count').innerText = data.active_users_count;
-        }
-
-        const statusText = document.getElementById('game-status-text');
-        const questionInfo = document.getElementById('question-info');
-        const timerControlGroup = document.getElementById('timer-control-group');
-        const answerBox = document.getElementById('answer-box');
-        const answerText = document.getElementById('answer-text');
-        const statsBox = document.getElementById('stats-box');
-        const correctCount = document.getElementById('correct-count');
-        const incorrectCount = document.getElementById('incorrect-count');
-
-        if (data.school_scores) activeScores = data.school_scores;
-
-        if (data.is_started) {
-            document.getElementById('btn-start').style.display = 'none';
-            if (data.is_time_up || data.is_end) {
-                document.getElementById('btn-timeout').style.display = 'none';
-                document.getElementById('btn-next').style.display = data.is_end ? 'none' : 'block';
-                timerControlGroup.style.display = 'none';
-            } else {
-                document.getElementById('btn-timeout').style.display = 'block';
-                document.getElementById('btn-next').style.display = 'none';
-                timerControlGroup.style.display = 'flex';
-            }
-        } else {
-            document.getElementById('btn-start').style.display = 'block';
-            document.getElementById('btn-timeout').style.display = 'none';
-            document.getElementById('btn-next').style.display = 'none';
-            timerControlGroup.style.display = 'none';
-            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
-            document.getElementById('timer-display').innerText = `⏳ ระบบยังไม่ได้เริ่มเกม`;
-            lastQuestionNumber = 0;
-        }
-
-        if (data.is_started && !data.is_time_up && !data.is_end) {
-            if (data.current_number !== lastQuestionNumber) {
-                lastQuestionNumber = data.current_number;
-                startTimer(true);
-            }
-        }
-
-        if (data.is_time_up || data.is_end) {
-            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
-            document.getElementById('timer-display').innerText = data.is_end ? `🏁 จบการแข่งขันแล้ว` : `🔒 หมดเวลาส่งคำตอบแล้ว`;
-        }
-
-        if (data.is_started && (data.is_time_up || data.is_end)) {
-            // ระบบเฉลยจะดึงค่า data.answer จาก Backend เท่านั้น 
-            answerText.innerText = data.answer || 'ไม่มีข้อมูลเฉลย';
-            answerBox.style.display = 'block';
-            
-            correctCount.innerText = data.correct_count !== undefined ? data.correct_count : '-';
-            incorrectCount.innerText = data.incorrect_count !== undefined ? data.incorrect_count : '-';
-            statsBox.style.display = 'flex'; 
-        } else {
-            answerBox.style.display = 'none';
-            statsBox.style.display = 'none';
-        }
-
-        if (!data.is_started) {
-            statusText.innerHTML = '<span class="status-dot dot-red"></span> ยังไม่เริ่มเกม';
-            questionInfo.innerText = 'โจทย์ปัจจุบัน: รอแอดมินกดเริ่มเกม';
-        } else if (data.is_end) {
-            statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
-            questionInfo.innerText = '🏆 จบเกมการแข่งขันครบทุกข้อแล้ว!';
-        } else if (data.is_time_up) {
-            statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
-            questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
-        } else {
-            statusText.innerHTML = '<span class="status-dot dot-green"></span> กำลังเปิดรับคำตอบ';
-            questionInfo.innerText = `โจทย์ปัจจุบัน ข้อที่ ${data.current_number}: ${data.question}`;
-        }
-    }
-
-    function controlGame(url) {
-        if (isActionInProgress) return;
-        isActionInProgress = true;
-        toggleButtonsState(true);
-
-        fetch(url, { method: 'POST' })
-        .then(res => res.json())
-        .then(resData => {
-            if (resData.status === "success" && resData.state) {
-                renderUI(resData.state);
-            }
-            setTimeout(() => { isActionInProgress = false; toggleButtonsState(false); }, 400);
-        })
-        .catch(err => {
-            console.error(err);
-            isActionInProgress = false;
-            toggleButtonsState(false);
-        });
-    }
-
-    function checkGameState() {
-        if (isActionInProgress) return;
-        fetch('/api/state')
-        .then(res => res.json())
-        .then(data => renderUI(data))
-        .catch(err => console.error(err));
-    }
-
-    function updateScoreBoard(schoolScores) {
-        const tbody = document.getElementById('score-board-body');
-        if (!schoolScores || Object.keys(schoolScores).length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr>';
-            return;
-        }
-        let arr = Object.keys(schoolScores).map(k => ({ name: k, score: schoolScores[k] })).sort((a,b) => b.score - a.score);
-        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td><span style="color:#2196f3; font-weight:bold;">${item.score} คะแนน</span></td></tr>`).join('');
-    }
-
-    stateCheckInterval = setInterval(checkGameState, 2000);
-    window.onload = checkGameState;
-</script>
-</body>
-</html>

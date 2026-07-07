@@ -1,5 +1,6 @@
 import os
 import json
+import time  # 📌 นำเข้าโมดูล time สำหรับระบบนับคนออนไลน์
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -8,6 +9,9 @@ app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
+
+# 📌 ตัวแปรเก็บเวลาล่าสุดที่ผู้เล่นแต่ละคน (user) มีการดึงข้อมูล
+active_users_memory = {}
 
 questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10"},
@@ -69,6 +73,12 @@ def calculate_team_points(correct_count):
     elif remainder == 1:
         points += 1
     return points
+
+# 📌 ฟังก์ชันดึงจำนวนผู้เล่นที่กำลังออนไลน์ (ภายใน 10 วินาทีล่าสุด)
+def get_active_users_count():
+    current_time = time.time()
+    return sum(1 for t in active_users_memory.values() if current_time - t < 10)
+
 
 # ==========================================
 # 🏠 เส้นทางหลัก (Routing Pages)
@@ -149,13 +159,20 @@ def start_game():
             "is_started": True, "is_time_up": False, "is_end": False,
             "current_number": 1, "question": questions[0]["q"], "answer": questions[0]["a"],
             "correct_count": 0, "incorrect_count": 0,
-            "school_scores": db["school_scores"]
+            "school_scores": db["school_scores"],
+            "active_users_count": get_active_users_count() # 📌 แนบไปตอนเริ่มเกม
         }
     })
 
 @app.route('/api/state')
 def get_state():
     db = load_db()
+    
+    # 📌 บันทึกเวลาปัจจุบันของผู้ใช้ (ถ้าเป็นผู้เล่น)
+    email = session.get('email')
+    if email and session.get('role') == 'user':
+        active_users_memory[email] = time.time()
+        
     if db["current_index"] >= len(questions):
         db["is_end"] = True
         db["current_index"] = len(questions) - 1
@@ -172,7 +189,7 @@ def get_state():
         correct_ans = questions[current_idx]["a"]
         
         # 📌 นับจำนวนตอบถูก/ผิด ตลอดเวลาเพื่อดึงไปแสดงผล
-        for email, player_data in db.get("current_answers", {}).items():
+        for p_email, player_data in db.get("current_answers", {}).items():
             if is_correct(player_data.get("answer"), correct_ans):
                 correct_count += 1
             else:
@@ -187,7 +204,8 @@ def get_state():
         "answer": correct_ans,
         "correct_count": correct_count,
         "incorrect_count": incorrect_count,
-        "school_scores": db["school_scores"]
+        "school_scores": db["school_scores"],
+        "active_users_count": get_active_users_count() # 📌 แนบไปกับ API state
     })
 
 @app.route('/api/timeout', methods=['POST'])
@@ -247,7 +265,8 @@ def trigger_timeout():
             "is_started": True, "is_time_up": True, "is_end": db["is_end"],
             "current_number": current_idx + 1, "question": current_q, "answer": correct_ans,
             "correct_count": correct_count, "incorrect_count": incorrect_count,
-            "school_scores": db["school_scores"]
+            "school_scores": db["school_scores"],
+            "active_users_count": get_active_users_count() # 📌
         }
     })
 
@@ -291,7 +310,8 @@ def next_question():
                 "is_started": True, "is_time_up": True, "is_end": True,
                 "current_number": current_idx + 1, "question": "", "answer": "-",
                 "correct_count": 0, "incorrect_count": 0,
-                "school_scores": db["school_scores"]
+                "school_scores": db["school_scores"],
+                "active_users_count": get_active_users_count() # 📌
             }
         })
 
@@ -308,7 +328,8 @@ def next_question():
             "is_started": True, "is_time_up": False, "is_end": False,
             "current_number": db["current_index"] + 1, "question": next_q, "answer": next_a,
             "correct_count": 0, "incorrect_count": 0,
-            "school_scores": db["school_scores"]
+            "school_scores": db["school_scores"],
+            "active_users_count": get_active_users_count() # 📌
         }
     })
 
@@ -324,7 +345,8 @@ def reset_game():
             "is_started": False, "is_time_up": False, "is_end": False,
             "current_number": 1, "question": "รอแอดมินกดเริ่มเกม", "answer": "-",
             "correct_count": 0, "incorrect_count": 0,
-            "school_scores": {}
+            "school_scores": {},
+            "active_users_count": get_active_users_count() # 📌
         }
     })
 
@@ -350,6 +372,10 @@ def submit_answer():
         "name": name,
         "evaluated": False
     }
+    
+    # 📌 อัปเดตสถานะว่าเพิ่งส่งคำตอบ = เพิ่งออนไลน์
+    active_users_memory[email] = time.time()
+    
     save_db(db)
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
 

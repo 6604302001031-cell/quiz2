@@ -5,8 +5,8 @@ import csv
 import io
 import re
 import urllib.request
-import urllib.error  # จัดการ Error กรณีไม่มีสิทธิ์เข้าถึงไฟล์ Google Sheets
-import base64        # 📌 นำเข้าไลบรารีสำหรับแปลงรูปภาพเป็นข้อความ (Base64)
+import urllib.error
+import base64
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -28,16 +28,13 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
-# 🚫 [ลบออก] โฟลเดอร์ /tmp/uploads ไม่จำเป็นต้องใช้แล้ว เพราะเราใช้ Base64 แทน
-
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
 active_users_memory = {}
 
 QUESTIONS_FILE = "/tmp/questions.json"
-DB_FILE = "/tmp/game_database.json"
 
-# โจทย์เริ่มต้น (เพิ่มโครงสร้างรองรับ image_url)
+# โจทย์เริ่มต้น
 default_questions = [
     {"q": "5 + 5 เท่ากับเท่าไร?", "a": "10", "image_url": ""},
     {"q": "1 + 1 เท่ากับเท่าไร?", "a": "2", "image_url": ""},
@@ -55,7 +52,7 @@ if os.path.exists(QUESTIONS_FILE):
     except Exception as e:
         print("Error loading questions file:", e)
 
-# 📌 ใช้ฟังก์ชันสร้าง State เริ่มต้นเพื่อป้องกันปัญหา Shallow Copy Reference Bug
+# 📌 ใช้ฟังก์ชันสร้าง State เริ่มต้น
 def get_default_state():
     return {
         "is_started": False,
@@ -67,21 +64,16 @@ def get_default_state():
         "current_answers": {} 
     }
 
+# 🚀 [แก้ไขเพื่อ Vercel] สร้างตัวแปร Global เพื่อเก็บสถานะเกมแทนการบันทึกไฟล์
+game_state_memory = get_default_state()
+
 def load_db():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return get_default_state()
-    return get_default_state()
+    global game_state_memory
+    return game_state_memory
 
 def save_db(data):
-    try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"Error writing to persistence layer: {e}")
+    global game_state_memory
+    game_state_memory = data
 
 def is_correct(ans1, ans2):
     return str(ans1).replace(" ", "").lower() == str(ans2).replace(" ", "").lower()
@@ -102,7 +94,7 @@ def get_active_users_count():
     return sum(1 for t in active_users_memory.values() if current_time - t < 10)
 
 
-# 📌 เพิ่มป้ายรองรับรูปภาพเผื่อมีในอนาคตสำหรับ Text Parser
+# 📌 ฟังก์ชันสำหรับ Text Parser
 def parse_text_to_questions(text):
     parsed_questions = []
     lines = text.split('\n')
@@ -116,11 +108,8 @@ def parse_text_to_questions(text):
         if not line: 
             continue
         
-        # ดักจับคำถาม: รองรับโครงสร้างตัวเลข "1. โจทย์" หรือ "ข้อ 1)" หรือคำว่า "โจทย์:"
         q_match = re.search(r'^\s*(?:ข้อ\s*)?(\d+)\s*[\.\)]\s*(.*)', line)
         q_keyword_match = re.search(r'^\s*(?:q|question|โจทย์|คำถาม)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
-        
-        # ดักจับคำตอบ: รองรับคำว่า "เฉลย:" "คำตอบ:" "ตอบ" หรือ "A:"
         a_match = re.search(r'^\s*(?:a|answer|เฉลย|คำตอบ|ตอบ)\s*[\.:-]?\s*(.*)', line, re.IGNORECASE)
         
         if q_match or q_keyword_match:
@@ -237,8 +226,6 @@ def google_login():
     except ValueError:
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
-# 🚫 [ลบออก] Route /uploads/<filename> ไม่จำเป็นต้องใช้แล้ว เพราะข้อมูลรูปถูกฝังใน JSON
-
 
 # ==========================================
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
@@ -259,12 +246,10 @@ def upload_questions():
     # 📸 รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ (แก้ไขเป็น Base64)
     if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')):
         try:
-            # 📌 อ่านไฟล์และแปลงเป็นข้อความ Base64
             file_bytes = file.read()
             base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
             mime_type = file.content_type or 'image/jpeg'
             
-            # สร้าง Data URI ของรูปภาพ
             image_data_uri = f"data:{mime_type};base64,{base64_encoded}"
             
             new_img_question = {
@@ -344,7 +329,7 @@ def upload_questions():
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
-# 🆕 Route สำหรับรับอัปโหลดรูปภาพพร้อมข้อความคำถาม/เฉลย โดยเฉพาะ (แก้ไขเป็น Base64)
+# 🆕 Route สำหรับรับอัปโหลดรูปภาพพร้อมข้อความคำถาม/เฉลย โดยเฉพาะ
 @app.route('/api/upload-image-question', methods=['POST'])
 def upload_image_question():
     if session.get('role') != 'admin':
@@ -363,12 +348,10 @@ def upload_image_question():
 
     global questions
     try:
-        # 📌 อ่านไฟล์และแปลงเป็นข้อความ Base64
         file_bytes = file.read()
         base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
         mime_type = file.content_type or 'image/jpeg'
         
-        # สร้าง Data URI ของรูปภาพ
         image_data_uri = f"data:{mime_type};base64,{base64_encoded}"
         
         final_q = question_text if question_text else f"คำถามจากรูปภาพ ({file.filename})"

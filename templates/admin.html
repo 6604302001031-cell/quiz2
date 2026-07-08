@@ -199,16 +199,6 @@
         <input type="file" id="image-file" accept=".jpg, .jpeg, .png, .webp" style="margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <input type="text" id="image-answer-text" placeholder="พิมพ์เฉลยสำหรับรูปภาพนี้..." style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <button onclick="uploadImageQuestion()" class="btn btn-orange" id="btn-upload-img" style="width: 100%; padding: 12px; font-size: 16px;">🖼️ อัปโหลดโจทย์รูปภาพและเฉลย</button>
-
-        <div style="margin-top: 20px; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px; border-radius: 8px;">
-            <p style="margin: 0 0 8px 0; color: #333;"><strong>รูปแบบไฟล์/ข้อมูลที่รองรับ:</strong></p>
-            <ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
-                <li><b>Google Sheets / .csv</b> - คอลัมน์แรกเป็นโจทย์ คอลัมน์สองเป็นเฉลย และคอลัมน์สามเป็นลิงก์รูปภาพ (ถ้ามี)</li>
-                <li><b>.json</b> - โครงสร้าง List: <code>[{"q": "คำถาม", "a": "เฉลย", "image_url": "ลิงก์รูปภาพ"}]</code></li>
-                <li><b>.pdf / .docx / .md</b> - พิมพ์คำว่า "โจทย์:" และ "เฉลย:" กำกับ</li>
-                <li><b>.jpg / .png / .webp</b> - ใช้อัปโหลดโจทย์ที่เป็นไฟล์รูปภาพโดยตรง (ช่องที่ 3)</li>
-            </ul>
-        </div>
     </div>
 </div>
 
@@ -281,7 +271,6 @@
         }
     }
 
-    /* -- New Feature: Upload Single Image Question -- */
     async function uploadImageQuestion() {
         const fileInput = document.getElementById('image-file');
         const questionInput = document.getElementById('image-question-text');
@@ -296,22 +285,20 @@
 
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("question", question); // ส่งคำถามไปด้วย
-        formData.append("answer", answer);     // ส่งเฉลยไปด้วย
+        formData.append("question", question);
+        formData.append("answer", answer); 
 
         const btnUploadImg = document.getElementById('btn-upload-img');
         btnUploadImg.disabled = true; 
         btnUploadImg.innerText = "กำลังอัปโหลด...";
 
         try {
-            // โค้ดนี้จะส่งไปที่ Endpoint สำหรับอัปโหลดภาพ (แอดมินต้องสร้าง /api/upload-image-question ในฝั่ง Server ด้วย)
             const res = await fetch('/api/upload-image-question', { method: 'POST', body: formData });
             const data = await res.json();
             
             alert(data.message);
             
             if (data.status === "success") {
-                // ล้างค่าข้อมูลหลังอัปโหลดเสร็จ
                 fileInput.value = ""; 
                 questionInput.value = ""; 
                 answerInput.value = "";
@@ -500,6 +487,7 @@
             questionInfo.style.textAlign = 'center';
             questionInfo.style.fontWeight = 'bold';
             questionImgBox.style.display = 'none';
+            questionImg.src = '';
         } else if (data.is_end) {
             statusText.innerHTML = '<span class="status-dot dot-red"></span> สิ้นสุดการแข่งขัน';
             questionLabel.innerText = 'โจทย์ปัจจุบัน:';
@@ -507,6 +495,7 @@
             questionInfo.style.textAlign = 'center';
             questionInfo.style.fontWeight = 'bold';
             questionImgBox.style.display = 'none';
+            questionImg.src = '';
         } else {
             if (data.is_time_up) {
                 statusText.innerHTML = '<span class="status-dot dot-red"></span> หมดเวลาข้อนี้แล้ว';
@@ -518,7 +507,8 @@
             questionInfo.style.textAlign = 'left';
             questionInfo.style.fontWeight = 'normal';
 
-            if (data.image_url && data.image_url.trim() !== "") {
+            // 📸 ส่วนแสดงผลรูปภาพ (อัปเดตให้รองรับค่า Base64 และตรวจสอบอย่างปลอดภัย)
+            if (data.image_url && data.image_url !== "") {
                 questionImg.src = data.image_url;
                 questionImgBox.style.display = 'block';
             } else {
@@ -556,11 +546,9 @@
         }
     }
 
-    // 💡 ฟังก์ชันที่ได้รับการแก้ไขแล้วเพื่อป้องกัน Cache
     async function checkGameState() {
         if (isActionInProgress) return;
         try {
-            // เพิ่ม ?t= (timestamp) และ cache: 'no-store' เพื่อบังคับดึงข้อมูลใหม่เสมอ
             const res = await fetch('/api/state?t=' + new Date().getTime(), {
                 method: 'GET',
                 cache: 'no-store'

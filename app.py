@@ -27,7 +27,7 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
-# 📸 [เพิ่มใหม่] กำหนดโฟลเดอร์สำหรับเก็บไฟล์รูปภาพที่อัปโหลดเข้ามาในระบบ
+# 📸 กำหนดโฟลเดอร์สำหรับเก็บไฟล์รูปภาพที่อัปโหลดเข้ามาในระบบ
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -255,20 +255,14 @@ def upload_questions():
     filename = file.filename.lower()
     global questions
 
-    # 📸 [ส่วนปรับปรุงใหม่] รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ
+    # 📸 รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ (เผื่ออัปโหลดผ่านช่องทางเดิม)
     if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')):
         try:
-            # สร้างโฟลเดอร์ไว้เก็บรูปภาพในโปรเจกต์หากยังไม่มี
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            
-            # บันทึกรูปภาพลงโฟลเดอร์ static/uploads/
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(file_path)
             
-            # สร้าง URL เพื่อให้ Frontend นำไปใช้เรนเดอร์แท็กอิมเมจ
             local_image_url = f"/static/uploads/{file.filename}"
-            
-            # ทำการเพิ่มต่อท้าย (Append) ข้อใหม่ เพื่อให้โจทย์เก่าๆ ไม่หายไป
             new_img_question = {
                 "q": f"คำถามจากรูปภาพ ({file.filename})",
                 "a": "กรุณาตั้งคำตอบระบบ",
@@ -276,7 +270,6 @@ def upload_questions():
             }
             questions.append(new_img_question)
             
-            # บันทึกความเปลี่ยนแปลงลงไฟล์ JSON หลัก
             with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
                 json.dump(questions, f, ensure_ascii=False, indent=4)
                 
@@ -287,7 +280,7 @@ def upload_questions():
         except Exception as e:
             return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการบันทึกรูปภาพ: {str(e)}"}), 500
 
-    # 📄 ประมวลผลกลุ่มไฟล์เอกสารตัวหนังสือตามปกติ (.json, .csv, .docx, .pdf, .md)
+    # 📄 ประมวลผลกลุ่มไฟล์เอกสารตัวหนังสือตามปกติ
     new_qs = []
     try:
         if filename.endswith('.json'):
@@ -333,7 +326,6 @@ def upload_questions():
         if len(new_qs) == 0:
             return jsonify({"status": "error", "message": "ไม่พบข้อมูลโจทย์ หรือพิมพ์รูปแบบไม่ถูกต้อง"}), 400
 
-        # ตรวจสอบและเติม Key image_url ให้ครบทุกข้อเพื่อความปลอดภัย
         for item in new_qs:
             if "image_url" not in item:
                 item["image_url"] = ""
@@ -347,6 +339,51 @@ def upload_questions():
         
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
+
+# 🆕 เพิ่ม Route ใหม่ สำหรับรับอัปโหลดรูปภาพพร้อมข้อความคำถาม/เฉลย โดยเฉพาะ
+@app.route('/api/upload-image-question', methods=['POST'])
+def upload_image_question():
+    if session.get('role') != 'admin':
+        return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
+        
+    file = request.files.get('file')
+    question_text = request.form.get('question', '').strip()
+    answer_text = request.form.get('answer', '').strip()
+
+    if not file or file.filename == '':
+        return jsonify({"status": "error", "message": "ไม่ได้เลือกไฟล์รูปภาพ"}), 400
+        
+    filename = file.filename.lower()
+    if not filename.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        return jsonify({"status": "error", "message": "ระบบรองรับเฉพาะไฟล์รูปภาพ .jpg, .png, .webp เท่านั้น"}), 400
+
+    global questions
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(file_path)
+        
+        local_image_url = f"/static/uploads/{file.filename}"
+        
+        final_q = question_text if question_text else f"คำถามจากรูปภาพ ({file.filename})"
+        final_a = answer_text if answer_text else "ไม่มีเฉลย"
+
+        new_img_question = {
+            "q": final_q,
+            "a": final_a,
+            "image_url": local_image_url
+        }
+        questions.append(new_img_question)
+        
+        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(questions, f, ensure_ascii=False, indent=4)
+            
+        return jsonify({
+            "status": "success", 
+            "message": f"อัปโหลดรูปภาพสำเร็จ! เพิ่มเข้าสู่ระบบเป็นโจทย์ข้อที่ {len(questions)} เรียบร้อยแล้ว"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการบันทึกรูปภาพ: {str(e)}"}), 500
 
 
 @app.route('/api/import-gsheet', methods=['POST'])

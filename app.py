@@ -654,7 +654,7 @@ def reset_game():
 # 📌 [เพิ่มใหม่] ฟังก์ชันยิงข้อมูลไปหา Google Web App URL แบบแบล็กกราวด์เธรด
 def send_to_gsheet(email, name, school, question_number, answer):
     # 👇 นำลิงก์ Web App URL ที่ยาวๆ จาก Google Apps Script มาใส่ตรงนี้ครับ 👇
-    webhook_url = "https://script.google.com/a/macros/student.sru.ac.th/s/AKfycby5azsingpUz183xBsWP96Ngr6RSieZznKLAnQ9dFUcD8wcK8vJ6MW-PiedF6jKKWQ/exec"
+    webhook_url = "https://script.google.com/macros/s/AKfycbzwnWyf8FFtn6dz2gisY_I96aVHnLPkYINAsiiJxDS_Cs8L9FMewWNkuxFHGxpOeZyN/exec"
     
     if webhook_url == "ใส่_URL_WEB_APP_ของคุณที่นี่" or not webhook_url.startswith("http"):
         return # ข้ามถ้ายังไม่มีการตั้งค่า URL ของแอดมิน

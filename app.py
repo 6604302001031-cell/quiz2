@@ -7,7 +7,8 @@ import re
 import urllib.request
 import urllib.error
 import base64
-import threading  # 📌 เพิ่มเข้ามาเพื่อใช้ส่งข้อมูลไป Google Sheets เบื้องหลังเว็บจะได้ไม่ค้าง
+import threading  # 📌 ใช้ส่งข้อมูลไป Google Sheets เบื้องหลังเว็บจะได้ไม่ค้าง
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -32,7 +33,6 @@ app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
 active_users_memory = {}
-
 QUESTIONS_FILE = "/tmp/questions.json"
 
 # โจทย์เริ่มต้น
@@ -228,6 +228,33 @@ def google_login():
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
 
+# 🆕 [เพิ่มใหม่] API สำหรับบันทึกโรงเรียนและส่งข้อมูลล็อกอินเข้า Google Sheet ทันที
+@app.route('/api/register-school', methods=['POST'])
+def register_school():
+    if 'role' not in session:
+        return jsonify({'status': 'error', 'message': 'กรุณาล็อกอินด้วย Google ก่อน'}), 401
+        
+    data = request.json or {}
+    school = data.get('school', '').strip()
+    
+    if not school:
+        return jsonify({'status': 'error', 'message': 'กรุณาเลือกหรือระบุชื่อโรงเรียน'}), 400
+        
+    # บันทึกชื่อโรงเรียนลงใน Session ของ User คนนี้เพื่อใช้ผูกกับการส่งคำตอบ
+    session['school'] = school
+    
+    email = session.get('email')
+    name = session.get('name', 'ผู้เล่น')
+    
+    # สั่งส่งข้อมูลสถานะลงทะเบียนเข้า Google Sheets แบบเบื้องหลังทันที
+    threading.Thread(
+        target=send_to_gsheet, 
+        args=(email, name, school, "Login", "เข้าร่วมเกม")
+    ).start()
+    
+    return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและส่งข้อมูลเข้า Google Sheet เรียบร้อยแล้ว'})
+
+
 # ==========================================
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
@@ -244,7 +271,6 @@ def upload_questions():
     filename = file.filename.lower()
     global questions
 
-    # 📸 รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ (แก้ไขเป็น Base64)
     if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')):
         try:
             file_bytes = file.read()
@@ -270,7 +296,6 @@ def upload_questions():
         except Exception as e:
             return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการแปลงรูปภาพ: {str(e)}"}), 500
 
-    # 📄 ประมวลผลกลุ่มไฟล์เอกสารตัวหนังสือตามปกติ
     new_qs = []
     try:
         if filename.endswith('.json'):
@@ -330,7 +355,7 @@ def upload_questions():
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
-# 🆕 Route สำหรับรับอัปโหลดรูปภาพพร้อมข้อความคำถาม/เฉลย โดยเฉพาะ
+
 @app.route('/api/upload-image-question', methods=['POST'])
 def upload_image_question():
     if session.get('role') != 'admin':
@@ -435,7 +460,7 @@ def import_gsheet():
 @app.route('/api/start', methods=['POST'])
 def start_game():
     if session.get('role') != 'admin':
-        return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
+         return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
     
     if len(questions) == 0:
          return jsonify({"status": "error", "message": "ไม่มีโจทย์ในระบบ กรุณาอัปโหลดโจทย์ก่อน"}), 400
@@ -651,9 +676,9 @@ def reset_game():
     })
 
 
-# 📌 [เพิ่มใหม่] ฟังก์ชันยิงข้อมูลไปหา Google Web App URL แบบแบล็กกราวด์เธรด
+# 📌 ฟังก์ชันยิงข้อมูลไปหา Google Web App URL แบบแบล็กกราวด์เธรด
 def send_to_gsheet(email, name, school, question_number, answer):
-    # 👇 นำลิงก์ Web App URL ที่ยาวๆ จาก Google Apps Script มาใส่ตรงนี้ครับ 👇
+    # 👇 ลิงก์ Web App URL จาก Google Apps Script ของแอดมิน 👇
     webhook_url = "https://script.google.com/macros/s/AKfycbzwnWyf8FFtn6dz2gisY_I96aVHnLPkYINAsiiJxDS_Cs8L9FMewWNkuxFHGxpOeZyN/exec"
     
     if webhook_url == "ใส่_URL_WEB_APP_ของคุณที่นี่" or not webhook_url.startswith("http"):
@@ -686,7 +711,8 @@ def submit_answer():
     player_answer = data.get('answer', '')
     email = session.get('email') or data.get('player_id')
     
-    school = data.get('school') or session.get('name') or "ไม่ระบุสังกัด"
+    # 📌 [แก้ไข] ให้อ่านจาก session['school'] ที่เคยลงทะเบียนเลือกโรงเรียนไว้ก่อนหน้าด้วย
+    school = data.get('school') or session.get('school') or session.get('name') or "ไม่ระบุสังกัด"
     name = session.get('name', 'ผู้เล่น')
     
     if not email:
@@ -702,7 +728,7 @@ def submit_answer():
     active_users_memory[email] = time.time()
     save_db(db)
     
-    # 📌 [แก้ไขเพิ่มเติม] สั่งส่งข้อมูลเข้าไปเก็บใน Google Sheets แบบเรียลไทม์หลังกดส่งคำตอบ
+    # สั่งส่งข้อมูลเข้าไปเก็บใน Google Sheets แบบเรียลไทม์หลังกดส่งคำตอบ
     current_question_number = db["current_index"] + 1
     threading.Thread(
         target=send_to_gsheet, 

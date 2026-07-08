@@ -7,7 +7,6 @@ import re
 import urllib.request
 import urllib.error
 import base64
-import threading  # 📌 ใช้ส่งข้อมูลไป Google Sheets เบื้องหลังเว็บจะได้ไม่ค้าง
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
@@ -228,7 +227,7 @@ def google_login():
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
 
-# 🆕 [เพิ่มใหม่] API สำหรับบันทึกโรงเรียนและส่งข้อมูลล็อกอินเข้า Google Sheet ทันที
+# 🆕 [แก้ไขแล้ว] API สำหรับบันทึกโรงเรียนและส่งข้อมูลล็อกอินเข้า Google Sheet ทันที (ไม่ใช้ threading สำหรับ Serverless)
 @app.route('/api/register-school', methods=['POST'])
 def register_school():
     if 'role' not in session:
@@ -246,11 +245,8 @@ def register_school():
     email = session.get('email')
     name = session.get('name', 'ผู้เล่น')
     
-    # สั่งส่งข้อมูลสถานะลงทะเบียนเข้า Google Sheets แบบเบื้องหลังทันที
-    threading.Thread(
-        target=send_to_gsheet, 
-        args=(email, name, school, "Login", "เข้าร่วมเกม")
-    ).start()
+    # 🛠️ แก้ไข: เปลี่ยนมาส่งข้อมูลแบบตรงๆ ไม่ผ่าน threading เพื่อรองรับสถาปัตยกรรมของ Vercel
+    send_to_gsheet(email, name, school, "Login", "เข้าร่วมเกม")
     
     return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและส่งข้อมูลเข้า Google Sheet เรียบร้อยแล้ว'})
 
@@ -676,7 +672,7 @@ def reset_game():
     })
 
 
-# 📌 ฟังก์ชันยิงข้อมูลไปหา Google Web App URL แบบแบล็กกราวด์เธรด
+# 📌 [แก้ไขแล้ว] ปรับเวลา Timeout ลงเหลือ 3 วินาที เพื่อไม่ให้เว็บค้างนานเกินไป
 def send_to_gsheet(email, name, school, question_number, answer):
     # 👇 ลิงก์ Web App URL จาก Google Apps Script ของแอดมิน 👇
     webhook_url = "https://script.google.com/macros/s/AKfycbzwnWyf8FFtn6dz2gisY_I96aVHnLPkYINAsiiJxDS_Cs8L9FMewWNkuxFHGxpOeZyN/exec"
@@ -696,11 +692,13 @@ def send_to_gsheet(email, name, school, question_number, answer):
         req = urllib.request.Request(webhook_url, method="POST")
         req.add_header('Content-Type', 'application/json')
         jsondata = json.dumps(data).encode('utf-8')
-        urllib.request.urlopen(req, data=jsondata, timeout=10)
+        # 🛠️ ปรับลด timeout เป็น 3 วินาที
+        urllib.request.urlopen(req, data=jsondata, timeout=3)
     except Exception as e:
         print(f"Error sending data to Google Sheet: {e}")
 
 
+# 🆕 [แก้ไขแล้ว] API สำหรับการส่งคำตอบ (เปลี่ยนมาส่งตรงๆ ไม่ผ่าน Threading เพื่อรองรับ Vercel)
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
     db = load_db()
@@ -711,7 +709,7 @@ def submit_answer():
     player_answer = data.get('answer', '')
     email = session.get('email') or data.get('player_id')
     
-    # 📌 [แก้ไข] ให้อ่านจาก session['school'] ที่เคยลงทะเบียนเลือกโรงเรียนไว้ก่อนหน้าด้วย
+    # 📌 ให้อ่านจาก session['school'] ที่เคยลงทะเบียนเลือกโรงเรียนไว้ก่อนหน้าด้วย
     school = data.get('school') or session.get('school') or session.get('name') or "ไม่ระบุสังกัด"
     name = session.get('name', 'ผู้เล่น')
     
@@ -730,10 +728,9 @@ def submit_answer():
     
     # สั่งส่งข้อมูลเข้าไปเก็บใน Google Sheets แบบเรียลไทม์หลังกดส่งคำตอบ
     current_question_number = db["current_index"] + 1
-    threading.Thread(
-        target=send_to_gsheet, 
-        args=(email, name, school, current_question_number, player_answer)
-    ).start()
+    
+    # 🛠️ แก้ไข: เปลี่ยนมาส่งข้อมูลแบบตรงๆ ไม่ผ่าน threading เพื่อป้องกันเซิร์ฟเวอร์ฟรีตัดสายทิ้งกลางทาง
+    send_to_gsheet(email, name, school, current_question_number, player_answer)
     
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
 

@@ -7,6 +7,7 @@ import re
 import urllib.request
 import urllib.error
 import base64
+import threading  # 📌 เพิ่มเข้ามาเพื่อใช้ส่งข้อมูลไป Google Sheets เบื้องหลังเว็บจะได้ไม่ค้าง
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -650,6 +651,31 @@ def reset_game():
     })
 
 
+# 📌 [เพิ่มใหม่] ฟังก์ชันยิงข้อมูลไปหา Google Web App URL แบบแบล็กกราวด์เธรด
+def send_to_gsheet(email, name, school, question_number, answer):
+    # 👇 นำลิงก์ Web App URL ที่ยาวๆ จาก Google Apps Script มาใส่ตรงนี้ครับ 👇
+    webhook_url = "https://script.google.com/a/macros/student.sru.ac.th/s/AKfycby5azsingpUz183xBsWP96Ngr6RSieZznKLAnQ9dFUcD8wcK8vJ6MW-PiedF6jKKWQ/exec"
+    
+    if webhook_url == "ใส่_URL_WEB_APP_ของคุณที่นี่" or not webhook_url.startswith("http"):
+        return # ข้ามถ้ายังไม่มีการตั้งค่า URL ของแอดมิน
+        
+    data = {
+        "email": email,
+        "name": name,
+        "school": school,
+        "question_number": question_number,
+        "answer": answer
+    }
+    
+    try:
+        req = urllib.request.Request(webhook_url, method="POST")
+        req.add_header('Content-Type', 'application/json')
+        jsondata = json.dumps(data).encode('utf-8')
+        urllib.request.urlopen(req, data=jsondata, timeout=10)
+    except Exception as e:
+        print(f"Error sending data to Google Sheet: {e}")
+
+
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
     db = load_db()
@@ -675,6 +701,14 @@ def submit_answer():
     
     active_users_memory[email] = time.time()
     save_db(db)
+    
+    # 📌 [แก้ไขเพิ่มเติม] สั่งส่งข้อมูลเข้าไปเก็บใน Google Sheets แบบเรียลไทม์หลังกดส่งคำตอบ
+    current_question_number = db["current_index"] + 1
+    threading.Thread(
+        target=send_to_gsheet, 
+        args=(email, name, school, current_question_number, player_answer)
+    ).start()
+    
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
 
 

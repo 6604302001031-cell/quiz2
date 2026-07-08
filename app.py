@@ -6,7 +6,8 @@ import io
 import re
 import urllib.request
 import urllib.error  # จัดการ Error กรณีไม่มีสิทธิ์เข้าถึงไฟล์ Google Sheets
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
+import base64        # 📌 นำเข้าไลบรารีสำหรับแปลงรูปภาพเป็นข้อความ (Base64)
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -27,10 +28,7 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
-# 📸 [แก้ไขเพื่อ Vercel] กำหนดโฟลเดอร์เก็บรูปภาพไปที่ /tmp เพื่อไม่ให้ติด Read-only Error
-UPLOAD_FOLDER = '/tmp/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # สร้างโฟลเดอร์เตรียมไว้
+# 🚫 [ลบออก] โฟลเดอร์ /tmp/uploads ไม่จำเป็นต้องใช้แล้ว เพราะเราใช้ Base64 แทน
 
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
@@ -239,13 +237,7 @@ def google_login():
     except ValueError:
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
-
-# ==========================================
-# 📸 Route สำหรับดึงรูปภาพที่เซฟไว้ใน /tmp/uploads ไปแสดงผล
-# ==========================================
-@app.route('/uploads/<filename>')
-def serve_uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+# 🚫 [ลบออก] Route /uploads/<filename> ไม่จำเป็นต้องใช้แล้ว เพราะข้อมูลรูปถูกฝังใน JSON
 
 
 # ==========================================
@@ -264,18 +256,21 @@ def upload_questions():
     filename = file.filename.lower()
     global questions
 
-    # 📸 รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ
+    # 📸 รองรับการโยนไฟล์รูปภาพ .jpg, .jpeg, .png, .webp เข้ามาตรงๆ (แก้ไขเป็น Base64)
     if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')):
         try:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(file_path)
+            # 📌 อ่านไฟล์และแปลงเป็นข้อความ Base64
+            file_bytes = file.read()
+            base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
+            mime_type = file.content_type or 'image/jpeg'
             
-            # [แก้ไข] เปลี่ยน Path รูปภาพให้ดึงจาก Route ที่เราสร้างขึ้นใหม่
-            local_image_url = f"/uploads/{file.filename}"
+            # สร้าง Data URI ของรูปภาพ
+            image_data_uri = f"data:{mime_type};base64,{base64_encoded}"
+            
             new_img_question = {
                 "q": f"คำถามจากรูปภาพ ({file.filename})",
                 "a": "กรุณาตั้งคำตอบระบบ",
-                "image_url": local_image_url
+                "image_url": image_data_uri
             }
             questions.append(new_img_question)
             
@@ -287,7 +282,7 @@ def upload_questions():
                 "message": f"อัปโหลดรูปภาพสำเร็จ! เพิ่มเข้าสู่ระบบเป็นโจทย์ข้อที่ {len(questions)} เรียบร้อยแล้ว"
             })
         except Exception as e:
-            return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการบันทึกรูปภาพ: {str(e)}"}), 500
+            return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการแปลงรูปภาพ: {str(e)}"}), 500
 
     # 📄 ประมวลผลกลุ่มไฟล์เอกสารตัวหนังสือตามปกติ
     new_qs = []
@@ -349,7 +344,7 @@ def upload_questions():
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}"}), 500
 
-# 🆕 Route สำหรับรับอัปโหลดรูปภาพพร้อมข้อความคำถาม/เฉลย โดยเฉพาะ
+# 🆕 Route สำหรับรับอัปโหลดรูปภาพพร้อมข้อความคำถาม/เฉลย โดยเฉพาะ (แก้ไขเป็น Base64)
 @app.route('/api/upload-image-question', methods=['POST'])
 def upload_image_question():
     if session.get('role') != 'admin':
@@ -368,11 +363,13 @@ def upload_image_question():
 
     global questions
     try:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(file_path)
+        # 📌 อ่านไฟล์และแปลงเป็นข้อความ Base64
+        file_bytes = file.read()
+        base64_encoded = base64.b64encode(file_bytes).decode('utf-8')
+        mime_type = file.content_type or 'image/jpeg'
         
-        # [แก้ไข] เปลี่ยน Path รูปภาพให้ดึงจาก Route ที่เราสร้างขึ้นใหม่
-        local_image_url = f"/uploads/{file.filename}"
+        # สร้าง Data URI ของรูปภาพ
+        image_data_uri = f"data:{mime_type};base64,{base64_encoded}"
         
         final_q = question_text if question_text else f"คำถามจากรูปภาพ ({file.filename})"
         final_a = answer_text if answer_text else "ไม่มีเฉลย"
@@ -380,7 +377,7 @@ def upload_image_question():
         new_img_question = {
             "q": final_q,
             "a": final_a,
-            "image_url": local_image_url
+            "image_url": image_data_uri
         }
         questions.append(new_img_question)
         
@@ -392,7 +389,7 @@ def upload_image_question():
             "message": f"อัปโหลดรูปภาพสำเร็จ! เพิ่มเข้าสู่ระบบเป็นโจทย์ข้อที่ {len(questions)} เรียบร้อยแล้ว"
         })
     except Exception as e:
-        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการบันทึกรูปภาพ: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการแปลงรูปภาพ: {str(e)}"}), 500
 
 
 @app.route('/api/import-gsheet', methods=['POST'])

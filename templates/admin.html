@@ -556,10 +556,15 @@
         }
     }
 
+    // 💡 ฟังก์ชันที่ได้รับการแก้ไขแล้วเพื่อป้องกัน Cache
     async function checkGameState() {
         if (isActionInProgress) return;
         try {
-            const res = await fetch('/api/state');
+            // เพิ่ม ?t= (timestamp) และ cache: 'no-store' เพื่อบังคับดึงข้อมูลใหม่เสมอ
+            const res = await fetch('/api/state?t=' + new Date().getTime(), {
+                method: 'GET',
+                cache: 'no-store'
+            });
             const data = await res.json();
             renderUI(data);
         } catch (err) {

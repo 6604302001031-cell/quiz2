@@ -439,6 +439,7 @@
         }
     }
 
+    // 🚀 [แก้ไขใหม่] ส่งชื่อโรงเรียนที่เลือกไปหลังบ้าน (app.py) เพื่อบันทึกเข้า Google Sheet
     function saveTeamName() {
         const provinceVal = document.getElementById('province-input').value.trim();
         const schoolVal = document.getElementById('school-input').value.trim();
@@ -453,8 +454,34 @@
         }
         
         teamName = `${schoolVal} (${provinceVal})`;
-        localStorage.setItem('quiz_team_name', teamName); 
-        initPlayer(); 
+        
+        const btn = document.querySelector('#setup-screen button');
+        const originalText = btn.innerText;
+        btn.innerText = 'กำลังบันทึก...';
+        btn.disabled = true;
+
+        fetch('/api/register-school', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ school: teamName })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                localStorage.setItem('quiz_team_name', teamName); 
+                initPlayer(); 
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + data.message);
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error('Error saving team name:', err);
+            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
+            btn.innerText = originalText;
+            btn.disabled = false;
+        });
     }
 
     document.getElementById('school-input').addEventListener('keypress', function(e) {

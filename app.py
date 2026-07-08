@@ -675,7 +675,7 @@ def reset_game():
 # 📌 [แก้ไขแล้ว] ปรับเวลา Timeout ลงเหลือ 3 วินาที เพื่อไม่ให้เว็บค้างนานเกินไป
 def send_to_gsheet(email, name, school, question_number, answer):
     # 👇 ลิงก์ Web App URL จาก Google Apps Script ของแอดมิน 👇
-    webhook_url = "https://script.google.com/macros/s/AKfycbzwnWyf8FFtn6dz2gisY_I96aVHnLPkYINAsiiJxDS_Cs8L9FMewWNkuxFHGxpOeZyN/exec"
+    webhook_url = "https://script.google.com/macros/s/AKfycbw9Xeju85-zSYqmDcB9xwphkOLZaAwoEexvi-vU5nCRHWsgtSc_LLdJrOzEWri09bNt/exec"
     
     if webhook_url == "ใส่_URL_WEB_APP_ของคุณที่นี่" or not webhook_url.startswith("http"):
         return # ข้ามถ้ายังไม่มีการตั้งค่า URL ของแอดมิน

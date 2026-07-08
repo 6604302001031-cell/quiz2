@@ -398,6 +398,7 @@
         });
     }
 
+    // 📌 [แก้ไขแล้ว] อัปเดตการแสดงผล MathJax แบบอัตโนมัติ
     function renderMathPreview() {
         const inputStr = document.getElementById('answer-input').value;
         const previewBox = document.getElementById('math-preview');
@@ -407,9 +408,18 @@
             return;
         }
 
-        previewBox.innerText = inputStr;
+        // 📌 บังคับครอบด้วย $$ อัตโนมัติ (ถ้าผู้เล่นไม่ได้พิมพ์ $ มา)
+        // เพื่อให้แปลงเป็นสมการคณิตศาสตร์เสมอ
+        let mathString = inputStr;
+        if (!mathString.includes('$')) {
+            mathString = '$$' + mathString + '$$';
+        }
+
+        previewBox.innerText = mathString;
 
         if (window.MathJax) {
+            // 📌 ล้างแคชการแสดงผลเดิมก่อน เพื่อป้องกันพรีวิวค้างหรือไม่ยอมอัปเดต
+            MathJax.typesetClear([previewBox]);
             MathJax.typesetPromise([previewBox]).catch(function (err) {
                 console.warn("MathJax Error: ", err.message);
             });

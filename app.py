@@ -7,6 +7,7 @@ import re
 import urllib.request
 import urllib.error
 import base64
+import requests  # 🎯 เพิ่มไลบรารี requests เพื่อการส่งข้อมูลที่เสถียรขึ้น
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
@@ -64,7 +65,7 @@ def get_default_state():
         "current_answers": {} 
     }
 
-# 🚀 [แก้ไขเพื่อ Vercel] สร้างตัวแปร Global เพื่อเก็บสถานะเกมแทนการบันทึกไฟล์
+# 🚀 สร้างตัวแปร Global เพื่อเก็บสถานะเกมบน Render
 game_state_memory = get_default_state()
 
 def load_db():
@@ -227,7 +228,7 @@ def google_login():
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
 
-# 🆕 [แก้ไขแล้ว] API สำหรับบันทึกโรงเรียนและส่งข้อมูลล็อกอินเข้า Google Sheet ทันที (ไม่ใช้ threading สำหรับ Serverless)
+# 🆕 API สำหรับบันทึกโรงเรียนและส่งข้อมูลล็อกอินเข้า Google Sheet
 @app.route('/api/register-school', methods=['POST'])
 def register_school():
     if 'role' not in session:
@@ -239,14 +240,13 @@ def register_school():
     if not school:
         return jsonify({'status': 'error', 'message': 'กรุณาเลือกหรือระบุชื่อโรงเรียน'}), 400
         
-    # บันทึกชื่อโรงเรียนลงใน Session ของ User คนนี้เพื่อใช้ผูกกับการส่งคำตอบ
     session['school'] = school
     
     email = session.get('email')
     name = session.get('name', 'ผู้เล่น')
     
-    # 🛠️ แก้ไข: เปลี่ยนมาส่งข้อมูลแบบตรงๆ ไม่ผ่าน threading เพื่อรองรับสถาปัตยกรรมของ Vercel
-    send_to_gsheet(email, name, school, "Login", "เข้าร่วมเกม")
+    # ส่งข้อมูลสถานะเข้าร่วมเกมไปที่คอลัมน์แรกๆ โดยส่งเลขข้อเป็น 0 เพื่อป้องกันชีตเออร์เรอร์
+    send_to_gsheet(email, name, school, 0, "เข้าร่วมเกม")
     
     return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและส่งข้อมูลเข้า Google Sheet เรียบร้อยแล้ว'})
 
@@ -360,8 +360,6 @@ def upload_image_question():
     file = request.files.get('file')
     question_text = request.form.get('question', '').strip()
     answer_text = request.form.get('answer', '').strip()
-    
-    # 📌 1. รับค่าข้อที่ต้องการแทรกจาก Frontend
     question_number_str = request.form.get('question_number', '').strip()
 
     if not file or file.filename == '':
@@ -388,20 +386,17 @@ def upload_image_question():
             "image_url": image_data_uri
         }
         
-        # 📌 2. คำนวณตำแหน่งที่ต้องการแทรก (Index เริ่มต้นที่ 0)
-        insert_index = len(questions) # ค่าเริ่มต้นคือต่อท้ายสุด (ถ้าไม่ได้ระบุเลข)
+        insert_index = len(questions) 
         
         if question_number_str.isdigit():
             target_number = int(question_number_str)
-            insert_index = target_number - 1 # ลบ 1 เพราะข้อ 1 คือ index 0
+            insert_index = target_number - 1 
             
-            # ป้องกัน Index ติดลบ หรือเกินจำนวนโจทย์ที่มีอยู่
             if insert_index < 0:
                 insert_index = 0
             elif insert_index > len(questions):
                 insert_index = len(questions)
 
-        # 📌 3. ใช้ .insert() เพื่อแทรกตรงกลางลิสต์ แทน .append()
         questions.insert(insert_index, new_img_question)
         
         with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
@@ -690,33 +685,30 @@ def reset_game():
     })
 
 
-# 📌 [แก้ไขแล้ว] ปรับเวลา Timeout ลงเหลือ 3 วินาที เพื่อไม่ให้เว็บค้างนานเกินไป
+# 🛠️ [แก้ไขจุดบกพร่อง] เปลี่ยนมาใช้ไลบรารี requests เพื่อรองรับการ Redirect (302) ของ Google Web App
 def send_to_gsheet(email, name, school, question_number, answer):
-    # 👇 ลิงก์ Web App URL จาก Google Apps Script ของแอดมิน 👇
     webhook_url = "https://script.google.com/macros/s/AKfycbw9Xeju85-zSYqmDcB9xwphkOLZaAwoEexvi-vU5nCRHWsgtSc_LLdJrOzEWri09bNt/exec"
     
-    if webhook_url == "ใส่_URL_WEB_APP_ของคุณที่นี่" or not webhook_url.startswith("http"):
-        return # ข้ามถ้ายังไม่มีการตั้งค่า URL ของแอดมิน
+    if not webhook_url.startswith("http"):
+        return 
         
     data = {
         "email": email,
         "name": name,
         "school": school,
-        "question_number": question_number,
-        "answer": answer
+        "question_number": int(question_number), # บังคับเป็นตัวเลขจำนวนเต็มเพื่อความปลอดภัย
+        "answer": str(answer)
     }
     
     try:
-        req = urllib.request.Request(webhook_url, method="POST")
-        req.add_header('Content-Type', 'application/json')
-        jsondata = json.dumps(data).encode('utf-8')
-        # 🛠️ ปรับลด timeout เป็น 3 วินาที
-        urllib.request.urlopen(req, data=jsondata, timeout=10)
+        # ใช้ requests.post เพื่อให้ระบบจัดการ Follow Redirect อัตโนมัติอย่างมั่นคง
+        response = requests.post(webhook_url, json=data, timeout=5)
+        print(f"Sync to Google Sheet complete. Status Code: {response.status_code}")
     except Exception as e:
         print(f"Error sending data to Google Sheet: {e}")
 
 
-# 🆕 [แก้ไขแล้ว] API สำหรับการส่งคำตอบ (เปลี่ยนมาส่งตรงๆ ไม่ผ่าน Threading เพื่อรองรับ Vercel)
+# API สำหรับการส่งคำตอบ
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
     db = load_db()
@@ -727,7 +719,6 @@ def submit_answer():
     player_answer = data.get('answer', '')
     email = session.get('email') or data.get('player_id')
     
-    # 📌 ให้อ่านจาก session['school'] ที่เคยลงทะเบียนเลือกโรงเรียนไว้ก่อนหน้าด้วย
     school = data.get('school') or session.get('school') or session.get('name') or "ไม่ระบุสังกัด"
     name = session.get('name', 'ผู้เล่น')
     
@@ -744,10 +735,10 @@ def submit_answer():
     active_users_memory[email] = time.time()
     save_db(db)
     
-    # สั่งส่งข้อมูลเข้าไปเก็บใน Google Sheets แบบเรียลไทม์หลังกดส่งคำตอบ
+    # ดึงลำดับข้อปัจจุบันส่งไปเก็บใน Google Sheets
     current_question_number = db["current_index"] + 1
     
-    # 🛠️ แก้ไข: เปลี่ยนมาส่งข้อมูลแบบตรงๆ ไม่ผ่าน threading เพื่อป้องกันเซิร์ฟเวอร์ฟรีตัดสายทิ้งกลางทาง
+    # ส่งคำตอบเข้า Google Sheet ทันที
     send_to_gsheet(email, name, school, current_question_number, player_answer)
     
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
@@ -761,9 +752,7 @@ def get_my_score():
     return jsonify({"score": score})
 
 
-# ==============================================================================
-# 🌟 [เพิ่มใหม่] API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์
-# ==============================================================================
+# API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์
 @app.route('/api/sheet-update-score', methods=['POST'])
 def sheet_update_score():
     data = request.json or {}
@@ -781,20 +770,16 @@ def sheet_update_score():
         
     db = load_db()
     
-    # 1. คำนวณส่วนต่างคะแนนเก่ากับคะแนนใหม่ เพื่อเอาไปปรับคะแนนทีมให้สัมพันธ์กัน
     old_player_score = db["player_scores"].get(email, 0)
     score_delta = new_score - old_player_score
     
-    # 2. อัปเดตคะแนนส่วนตัวของเด็ก
     db["player_scores"][email] = new_score
     
-    # 3. อัปเดตคะแนนกลุ่มโรงเรียน (คะแนนทีม) ตามส่วนต่างที่แอดมินแก้ใน Sheet
     if school:
         if school not in db["school_scores"]:
             db["school_scores"][school] = 0
         db["school_scores"][school] += score_delta
         
-        # ป้องกันกรณีคะแนนทีมติดลบ
         if db["school_scores"][school] < 0:
             db["school_scores"][school] = 0
             

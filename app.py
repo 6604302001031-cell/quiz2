@@ -360,6 +360,9 @@ def upload_image_question():
     file = request.files.get('file')
     question_text = request.form.get('question', '').strip()
     answer_text = request.form.get('answer', '').strip()
+    
+    # 📌 1. รับค่าข้อที่ต้องการแทรกจาก Frontend
+    question_number_str = request.form.get('question_number', '').strip()
 
     if not file or file.filename == '':
         return jsonify({"status": "error", "message": "ไม่ได้เลือกไฟล์รูปภาพ"}), 400
@@ -384,14 +387,29 @@ def upload_image_question():
             "a": final_a,
             "image_url": image_data_uri
         }
-        questions.append(new_img_question)
+        
+        # 📌 2. คำนวณตำแหน่งที่ต้องการแทรก (Index เริ่มต้นที่ 0)
+        insert_index = len(questions) # ค่าเริ่มต้นคือต่อท้ายสุด (ถ้าไม่ได้ระบุเลข)
+        
+        if question_number_str.isdigit():
+            target_number = int(question_number_str)
+            insert_index = target_number - 1 # ลบ 1 เพราะข้อ 1 คือ index 0
+            
+            # ป้องกัน Index ติดลบ หรือเกินจำนวนโจทย์ที่มีอยู่
+            if insert_index < 0:
+                insert_index = 0
+            elif insert_index > len(questions):
+                insert_index = len(questions)
+
+        # 📌 3. ใช้ .insert() เพื่อแทรกตรงกลางลิสต์ แทน .append()
+        questions.insert(insert_index, new_img_question)
         
         with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(questions, f, ensure_ascii=False, indent=4)
             
         return jsonify({
             "status": "success", 
-            "message": f"อัปโหลดรูปภาพสำเร็จ! เพิ่มเข้าสู่ระบบเป็นโจทย์ข้อที่ {len(questions)} เรียบร้อยแล้ว"
+            "message": f"อัปโหลดรูปภาพสำเร็จ! แทรกเข้าสู่ระบบเป็นโจทย์ข้อที่ {insert_index + 1} เรียบร้อยแล้ว"
         })
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาดในการแปลงรูปภาพ: {str(e)}"}), 500

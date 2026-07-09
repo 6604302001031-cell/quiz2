@@ -711,7 +711,7 @@ def send_to_gsheet(email, name, school, question_number, answer):
         req.add_header('Content-Type', 'application/json')
         jsondata = json.dumps(data).encode('utf-8')
         # 🛠️ ปรับลด timeout เป็น 3 วินาที
-        urllib.request.urlopen(req, data=jsondata, timeout=3)
+        urllib.request.urlopen(req, data=jsondata, timeout=10)
     except Exception as e:
         print(f"Error sending data to Google Sheet: {e}")
 

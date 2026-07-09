@@ -761,5 +761,46 @@ def get_my_score():
     return jsonify({"score": score})
 
 
+# ==============================================================================
+# 🌟 [เพิ่มใหม่] API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์
+# ==============================================================================
+@app.route('/api/sheet-update-score', methods=['POST'])
+def sheet_update_score():
+    data = request.json or {}
+    email = data.get('email', '').strip().lower()
+    school = data.get('school', '').strip()
+    new_score = data.get('new_score')
+    
+    if not email or new_score is None:
+        return jsonify({"status": "error", "message": "ข้อมูลไม่ครบถ้วน"}), 400
+        
+    try:
+        new_score = int(new_score)
+    except ValueError:
+        return jsonify({"status": "error", "message": "คะแนนต้องเป็นตัวเลขจำนวนเต็ม"}), 400
+        
+    db = load_db()
+    
+    # 1. คำนวณส่วนต่างคะแนนเก่ากับคะแนนใหม่ เพื่อเอาไปปรับคะแนนทีมให้สัมพันธ์กัน
+    old_player_score = db["player_scores"].get(email, 0)
+    score_delta = new_score - old_player_score
+    
+    # 2. อัปเดตคะแนนส่วนตัวของเด็ก
+    db["player_scores"][email] = new_score
+    
+    # 3. อัปเดตคะแนนกลุ่มโรงเรียน (คะแนนทีม) ตามส่วนต่างที่แอดมินแก้ใน Sheet
+    if school:
+        if school not in db["school_scores"]:
+            db["school_scores"][school] = 0
+        db["school_scores"][school] += score_delta
+        
+        # ป้องกันกรณีคะแนนทีมติดลบ
+        if db["school_scores"][school] < 0:
+            db["school_scores"][school] = 0
+            
+    save_db(db)
+    return jsonify({"status": "success", "message": "ซิงค์ข้อมูลลงหน้าเว็บและทีมสำเร็จแล้ว!"})
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

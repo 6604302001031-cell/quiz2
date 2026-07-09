@@ -63,10 +63,10 @@
         
         /* 📌 Modal */
         .modal-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; max-height: 90vh; overflow-y: auto; }
+        .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; max-height: 90vh; overflow-y: auto; color: #333; }
         .close-modal-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; border: none; background: none; }
         
-        .score-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .score-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 16px; }
         .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
         .score-table th { background-color: #f1f3f5; }
 
@@ -114,6 +114,8 @@
     <h2>👑 ระบบควบคุมเกม (แอดมิน)</h2>
 
     <div class="status-box" id="fullscreen-target">
+        
+        <button onclick="openScoreModal()" class="btn btn-purple show-on-fullscreen" style="position: absolute; top: 20px; left: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">📊 ดูตารางคะแนน</button>
         <button onclick="toggleFullscreen()" class="btn btn-red-outline show-on-fullscreen" style="position: absolute; top: 20px; right: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">❌ ออกจากเต็มจอ (Cancel)</button>
 
         <div class="status-line hide-on-fullscreen"><strong>สถานะเกม:</strong>&nbsp;<span id="game-status-text">กำลังโหลด...</span></div>
@@ -145,6 +147,21 @@
         </div>
         
         <button onclick="toggleFullscreen()" class="btn btn-orange hide-on-fullscreen" style="margin-top: 15px; padding: 8px; font-size: 14px; width: auto; display: block; margin-left: auto; margin-right: auto;">🖥️ ขยายหน้าจอโจทย์ (Fullscreen)</button>
+
+        <div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
+            <div class="modal-content">
+                <button class="close-modal-btn" onclick="closeScoreModal()">&times;</button>
+                <h3 style="margin-top: 0;">🏆 ตารางคะแนนรวมทีม</h3>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table class="score-table">
+                        <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
+                        <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
+                    </table>
+                </div>
+                <button onclick="closeScoreModal()" class="btn btn-blue" style="margin-top: 20px; margin-bottom: 0;">ปิด</button>
+            </div>
+        </div>
+
     </div>
 
     <button onclick="controlGame('/api/start')" class="btn btn-blue" id="btn-start">▶️ กดเพื่อเริ่ม (Start)</button>
@@ -163,19 +180,6 @@
     <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกม (Reset All)</button>
 </div>
 
-<div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
-    <div class="modal-content">
-        <button class="close-modal-btn" onclick="closeScoreModal()">&times;</button>
-        <h3 style="margin-top: 0;">🏆 ตารางคะแนนรวมทีม</h3>
-        <div style="max-height: 300px; overflow-y: auto;">
-            <table class="score-table">
-                <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
-                <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
-            </table>
-        </div>
-        <button onclick="closeScoreModal()" class="btn btn-blue" style="margin-top: 20px; margin-bottom: 0;">ปิด</button>
-    </div>
-</div>
 
 <div id="upload-modal" class="modal-overlay" onclick="closeEditModalOutside(event)">
     <div class="modal-content" style="text-align: left;">
@@ -276,19 +280,19 @@
         const fileInput = document.getElementById('image-file');
         const questionInput = document.getElementById('image-question-text');
         const answerInput = document.getElementById('image-answer-text');
-        const numberInput = document.getElementById('image-question-number'); // 📌 ดึงค่าจากช่องระบุข้อ
+        const numberInput = document.getElementById('image-question-number');
         
         const file = fileInput.files[0];
         const question = questionInput.value.trim();
         const answer = answerInput.value.trim();
-        const questionNumber = numberInput.value.trim(); // 📌 ดึงค่าเลขข้อที่ต้องการแทรก
+        const questionNumber = numberInput.value.trim(); 
 
         if (!questionNumber) { alert("⚠️ กรุณาระบุข้อที่ต้องการแทรกรูปด้วยครับ"); return; }
         if (!file) { alert("⚠️ กรุณาเลือกไฟล์รูปภาพ .jpg หรือ .png ก่อนครับ"); return; }
         if (!answer) { alert("⚠️ กรุณาระบุเฉลยสำหรับข้อนี้ด้วยครับ"); return; }
 
         const formData = new FormData();
-        formData.append("question_number", questionNumber); // 📌 ส่งเลขข้อไปให้ Backend
+        formData.append("question_number", questionNumber); 
         formData.append("file", file);
         formData.append("question", question);
         formData.append("answer", answer); 
@@ -307,7 +311,7 @@
                 fileInput.value = ""; 
                 questionInput.value = ""; 
                 answerInput.value = "";
-                numberInput.value = ""; // 📌 เคลียร์ค่าช่องเมื่ออัปโหลดเสร็จ
+                numberInput.value = ""; 
                 closeEditModal(); 
                 checkGameState();
             }
@@ -513,7 +517,6 @@
             questionInfo.style.textAlign = 'left';
             questionInfo.style.fontWeight = 'normal';
 
-            // 📸 ส่วนแสดงผลรูปภาพ
             if (data.image_url && data.image_url !== "") {
                 questionImg.src = data.image_url;
                 questionImgBox.style.display = 'block';

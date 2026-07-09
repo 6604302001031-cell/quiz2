@@ -194,8 +194,9 @@
         
         <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 20px 0;">
 
-        <label style="font-weight: bold; font-size: 14px; color: #555;">3. อัปโหลดรูปภาพโจทย์เดี่ยว (.jpg, .png)</label>
-        <input type="text" id="image-question-text" placeholder="พิมพ์คำถาม (ถ้ามี)..." style="margin-top: 8px; margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <label style="font-weight: bold; font-size: 14px; color: #555;">3. อัปโหลดและแทรกรูปภาพเข้าไปในข้อ</label>
+        <input type="number" id="image-question-number" placeholder="ระบุข้อที่ต้องการแทรกรูป (เช่น 1, 2, 3)..." style="margin-top: 8px; margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;" min="1" required>
+        <input type="text" id="image-question-text" placeholder="พิมพ์คำถาม (ถ้ามี)..." style="margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <input type="file" id="image-file" accept=".jpg, .jpeg, .png, .webp" style="margin-bottom: 8px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <input type="text" id="image-answer-text" placeholder="พิมพ์เฉลยสำหรับรูปภาพนี้..." style="margin-bottom: 15px; display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         <button onclick="uploadImageQuestion()" class="btn btn-orange" id="btn-upload-img" style="width: 100%; padding: 12px; font-size: 16px;">🖼️ อัปโหลดโจทย์รูปภาพและเฉลย</button>
@@ -275,15 +276,19 @@
         const fileInput = document.getElementById('image-file');
         const questionInput = document.getElementById('image-question-text');
         const answerInput = document.getElementById('image-answer-text');
+        const numberInput = document.getElementById('image-question-number'); // 📌 ดึงค่าจากช่องระบุข้อ
         
         const file = fileInput.files[0];
         const question = questionInput.value.trim();
         const answer = answerInput.value.trim();
+        const questionNumber = numberInput.value.trim(); // 📌 ดึงค่าเลขข้อที่ต้องการแทรก
 
+        if (!questionNumber) { alert("⚠️ กรุณาระบุข้อที่ต้องการแทรกรูปด้วยครับ"); return; }
         if (!file) { alert("⚠️ กรุณาเลือกไฟล์รูปภาพ .jpg หรือ .png ก่อนครับ"); return; }
         if (!answer) { alert("⚠️ กรุณาระบุเฉลยสำหรับข้อนี้ด้วยครับ"); return; }
 
         const formData = new FormData();
+        formData.append("question_number", questionNumber); // 📌 ส่งเลขข้อไปให้ Backend
         formData.append("file", file);
         formData.append("question", question);
         formData.append("answer", answer); 
@@ -302,6 +307,7 @@
                 fileInput.value = ""; 
                 questionInput.value = ""; 
                 answerInput.value = "";
+                numberInput.value = ""; // 📌 เคลียร์ค่าช่องเมื่ออัปโหลดเสร็จ
                 closeEditModal(); 
                 checkGameState();
             }
@@ -507,7 +513,7 @@
             questionInfo.style.textAlign = 'left';
             questionInfo.style.fontWeight = 'normal';
 
-            // 📸 ส่วนแสดงผลรูปภาพ (อัปเดตให้รองรับค่า Base64 และตรวจสอบอย่างปลอดภัย)
+            // 📸 ส่วนแสดงผลรูปภาพ
             if (data.image_url && data.image_url !== "") {
                 questionImg.src = data.image_url;
                 questionImgBox.style.display = 'block';

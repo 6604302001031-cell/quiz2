@@ -7,7 +7,8 @@ import re
 import urllib.request
 import urllib.error
 import base64
-import requests  # 🎯 เพิ่มไลบรารี requests เพื่อการส่งข้อมูลที่เสถียรขึ้น
+import threading  # 🎯 เพิ่มเข้ามาเพื่อจัดการระบบ Lock และ Background Thread
+import requests
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
@@ -32,6 +33,9 @@ app.secret_key = 'quiz_game_secure_session_key_production_fixed'
 
 GOOGLE_CLIENT_ID = "969552580845-5fkmba3g0jt9d8bkdllkp1vsnodmgg0k.apps.googleusercontent.com"
 
+# 🔒 เพิ่ม Lock เพื่อความปลอดภัยของข้อมูลใน Multi-threading
+data_lock = threading.Lock()
+
 active_users_memory = {}
 QUESTIONS_FILE = "/tmp/questions.json"
 
@@ -53,7 +57,7 @@ if os.path.exists(QUESTIONS_FILE):
     except Exception as e:
         print("Error loading questions file:", e)
 
-# 📌 ใช้ฟังก์ชันสร้าง State เริ่มต้น
+# 📌 ฟังก์ชันสร้าง State เริ่มต้น
 def get_default_state():
     return {
         "is_started": False,
@@ -65,7 +69,7 @@ def get_default_state():
         "current_answers": {} 
     }
 
-# 🚀 สร้างตัวแปร Global เพื่อเก็บสถานะเกมบน Render
+# 🚀 สร้างตัวแปร Global เก็บสถานะเกม
 game_state_memory = get_default_state()
 
 def load_db():
@@ -92,8 +96,49 @@ def calculate_team_points(correct_count):
 
 def get_active_users_count():
     current_time = time.time()
-    return sum(1 for t in active_users_memory.values() if current_time - t < 10)
+    with data_lock:
+        # ใช้ list() ครอบ เพื่อป้องกัน RuntimeError ดีลกับการวนลูปดิกชันนารีที่มีการเปลี่ยนแปลง
+        return sum(1 for t in list(active_users_memory.values()) if current_time - t < 10)
 
+# 📌 ฟังก์ชันตรวจคำตอบและคำนวณคะแนนส่วนกลาง (ลดการซ้ำซ้อนของโค้ด)
+def evaluate_current_answers(db):
+    current_idx = db["current_index"]
+    if current_idx >= len(questions):
+        return 0, 0
+
+    correct_answer = questions[current_idx]["a"]
+    correct_count = 0
+    incorrect_count = 0
+    school_correct_counts = {}
+
+    # ลูปประมวลผลคำตอบของผู้เล่นทุกคนในข้อปัจจุบัน
+    for email, player_data in list(db["current_answers"].items()):
+        is_ans_correct = is_correct(player_data["answer"], correct_answer)
+        
+        if is_ans_correct:
+            correct_count += 1
+        else:
+            incorrect_count += 1
+        
+        # ป้องกันคะแนนเบิ้ล หากข้อนี้ยังไม่เคยคิดคะแนน
+        if not player_data.get("evaluated", False):
+            school = player_data.get("school") or "ไม่ระบุสังกัด"
+            
+            if is_ans_correct:
+                school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
+                db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
+            
+            player_data["evaluated"] = True
+
+    # คำนวณคะแนนให้แก่แต่ละโรงเรียนตามเงื่อนไขพิเศษ
+    for school, count in school_correct_counts.items():
+        if school not in db["school_scores"]:
+            db["school_scores"][school] = 0
+        
+        earned_points = calculate_team_points(count)
+        db["school_scores"][school] += earned_points
+
+    return correct_count, incorrect_count
 
 # 📌 ฟังก์ชันสำหรับ Text Parser
 def parse_text_to_questions(text):
@@ -245,10 +290,10 @@ def register_school():
     email = session.get('email')
     name = session.get('name', 'ผู้เล่น')
     
-    # ส่งข้อมูลสถานะเข้าร่วมเกมไปที่คอลัมน์แรกๆ โดยส่งเลขข้อเป็น 0 เพื่อป้องกันชีตเออร์เรอร์
-    send_to_gsheet(email, name, school, 0, "เข้าร่วมเกม")
+    # ส่งแบบ Asynchronous ทำงานเบื้องหลัง หน้าเว็บจะไม่ค้าง
+    threading.Thread(target=send_to_gsheet, args=(email, name, school, 0, "เข้าร่วมเกม")).start()
     
-    return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและส่งข้อมูลเข้า Google Sheet เรียบร้อยแล้ว'})
+    return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและลงทะเบียนเรียบร้อยแล้ว'})
 
 
 # ==========================================
@@ -280,10 +325,11 @@ def upload_questions():
                 "a": "กรุณาตั้งคำตอบระบบ",
                 "image_url": image_data_uri
             }
-            questions.append(new_img_question)
             
-            with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-                json.dump(questions, f, ensure_ascii=False, indent=4)
+            with data_lock:
+                questions.append(new_img_question)
+                with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(questions, f, ensure_ascii=False, indent=4)
                 
             return jsonify({
                 "status": "success", 
@@ -341,11 +387,12 @@ def upload_questions():
             if "image_url" not in item:
                 item["image_url"] = ""
 
-        questions = new_qs
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(questions, f, ensure_ascii=False, indent=4)
+        with data_lock:
+            questions = new_qs
+            with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+                json.dump(questions, f, ensure_ascii=False, indent=4)
+            save_db(get_default_state())
             
-        save_db(get_default_state())
         return jsonify({"status": "success", "message": f"อัปโหลดสำเร็จ {len(questions)} ข้อ และรีเซ็ตระบบแล้ว"})
         
     except Exception as e:
@@ -386,21 +433,22 @@ def upload_image_question():
             "image_url": image_data_uri
         }
         
-        insert_index = len(questions) 
-        
-        if question_number_str.isdigit():
-            target_number = int(question_number_str)
-            insert_index = target_number - 1 
+        with data_lock:
+            insert_index = len(questions) 
             
-            if insert_index < 0:
-                insert_index = 0
-            elif insert_index > len(questions):
-                insert_index = len(questions)
+            if question_number_str.isdigit():
+                target_number = int(question_number_str)
+                insert_index = target_number - 1 
+                
+                if insert_index < 0:
+                    insert_index = 0
+                elif insert_index > len(questions):
+                    insert_index = len(questions)
 
-        questions.insert(insert_index, new_img_question)
-        
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(questions, f, ensure_ascii=False, indent=4)
+            questions.insert(insert_index, new_img_question)
+            
+            with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+                json.dump(questions, f, ensure_ascii=False, indent=4)
             
         return jsonify({
             "status": "success", 
@@ -450,12 +498,12 @@ def import_gsheet():
             return jsonify({"status": "error", "message": "ไม่พบข้อมูลในแผ่นงาน"}), 400
             
         global questions
-        questions = new_qs
-        
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(questions, f, ensure_ascii=False, indent=4)
+        with data_lock:
+            questions = new_qs
+            with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+                json.dump(questions, f, ensure_ascii=False, indent=4)
+            save_db(get_default_state())
             
-        save_db(get_default_state())
         return jsonify({"status": "success", "message": f"ดึงข้อมูลจาก Sheet สำเร็จจำนวน {len(questions)} ข้อ"})
         
     except urllib.error.HTTPError as e:
@@ -474,13 +522,14 @@ def start_game():
     if len(questions) == 0:
          return jsonify({"status": "error", "message": "ไม่มีโจทย์ในระบบ กรุณาอัปโหลดโจทย์ก่อน"}), 400
 
-    db = load_db()
-    db["is_started"] = True
-    db["is_end"] = False
-    db["current_index"] = 0
-    db["is_time_up"] = False
-    db["current_answers"] = {}
-    save_db(db)
+    with data_lock:
+        db = load_db()
+        db["is_started"] = True
+        db["is_end"] = False
+        db["current_index"] = 0
+        db["is_time_up"] = False
+        db["current_answers"] = {}
+        save_db(db)
     
     return jsonify({
         "status": "success",
@@ -497,34 +546,39 @@ def start_game():
 
 @app.route('/api/state')
 def get_state():
-    db = load_db()
-    email = session.get('email')
-    if email and session.get('role') == 'user':
-        active_users_memory[email] = time.time()
-        
-    if len(questions) > 0 and db["current_index"] >= len(questions):
-        db["is_end"] = True
-        db["current_index"] = max(0, len(questions) - 1)
-        save_db(db)
+    with data_lock:
+        db = load_db()
+        email = session.get('email')
+        if email and session.get('role') == 'user':
+            active_users_memory[email] = time.time()
+            
+        if len(questions) > 0 and db["current_index"] >= len(questions):
+            db["is_end"] = True
+            db["current_index"] = max(0, len(questions) - 1)
+            save_db(db)
 
-    current_q = ""
-    correct_ans = ""
-    correct_count = 0
-    incorrect_count = 0
-    img_url = ""
+        current_q = ""
+        correct_ans = ""
+        correct_count = 0
+        incorrect_count = 0
+        img_url = ""
 
-    if db["is_started"] and len(questions) > 0:
-        current_idx = db["current_index"]
-        current_q = questions[current_idx]["q"] if not db["is_end"] else ""
-        correct_ans = questions[current_idx]["a"]
-        img_url = questions[current_idx].get("image_url", "")
+        if db["is_started"] and len(questions) > 0:
+            current_idx = db["current_index"]
+            current_q = questions[current_idx]["q"] if not db["is_end"] else ""
+            correct_ans = questions[current_idx]["a"]
+            img_url = questions[current_idx].get("image_url", "")
+            
+            # ใช้ฟังก์ชันตรวจนับคำตอบชั่วคราวเพื่อแสดงผลสดแบบเรียลไทม์บน Dashboard
+            for p_email, player_data in db.get("current_answers", {}).items():
+                if is_correct(player_data.get("answer"), correct_ans):
+                    correct_count += 1
+                else:
+                    incorrect_count += 1
         
-        for p_email, player_data in db.get("current_answers", {}).items():
-            if is_correct(player_data.get("answer"), correct_ans):
-                correct_count += 1
-            else:
-                incorrect_count += 1
-        
+        # คัดลอกโรงเรียนมาแสดงผลเพื่อป้องกันการดึงค่าพร้อมเขียนข้อมูล
+        school_scores_copy = dict(db["school_scores"])
+
     return jsonify({
         "is_started": db["is_started"],
         "is_time_up": db["is_time_up"],
@@ -535,7 +589,7 @@ def get_state():
         "image_url": img_url,
         "correct_count": correct_count,
         "incorrect_count": incorrect_count,
-        "school_scores": db["school_scores"],
+        "school_scores": school_scores_copy,
         "active_users_count": get_active_users_count()
     })
 
@@ -545,48 +599,22 @@ def trigger_timeout():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    db = load_db()
-    if not db["is_started"]:
-        return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
+    with data_lock:
+        db = load_db()
+        if not db["is_started"]:
+            return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
+            
+        db["is_time_up"] = True
+        current_idx = db["current_index"]
         
-    db["is_time_up"] = True
-    current_idx = db["current_index"]
-    
-    correct_count = 0
-    incorrect_count = 0
-    
-    if current_idx < len(questions):
-        correct_answer = questions[current_idx]["a"]
-        school_correct_counts = {}
+        # เรียกใช้ฟังก์ชันประมวลผลคะแนนส่วนกลาง
+        correct_count, incorrect_count = evaluate_current_answers(db)
+        save_db(db)
         
-        for email, player_data in list(db["current_answers"].items()):
-            is_ans_correct = is_correct(player_data["answer"], correct_answer)
-            
-            if is_ans_correct:
-                correct_count += 1
-            else:
-                incorrect_count += 1
-            
-            if not player_data.get("evaluated", False):
-                school = player_data.get("school") or "ไม่ระบุสังกัด"
-                
-                if is_ans_correct:
-                    school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
-                    db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
-                
-                player_data["evaluated"] = True
-                
-        for school, count in school_correct_counts.items():
-            if school not in db["school_scores"]:
-                db["school_scores"][school] = 0
-            
-            earned_points = calculate_team_points(count)
-            db["school_scores"][school] += earned_points
-            
-    save_db(db)
-    current_q = questions[current_idx]["q"] if current_idx < len(questions) else ""
-    correct_ans = questions[current_idx]["a"] if current_idx < len(questions) else ""
-    img_url = questions[current_idx].get("image_url", "") if current_idx < len(questions) else ""
+        current_q = questions[current_idx]["q"] if current_idx < len(questions) else ""
+        correct_ans = questions[current_idx]["a"] if current_idx < len(questions) else ""
+        img_url = questions[current_idx].get("image_url", "") if current_idx < len(questions) else ""
+        school_scores_copy = dict(db["school_scores"])
     
     return jsonify({
         "status": "success",
@@ -595,7 +623,7 @@ def trigger_timeout():
             "current_number": current_idx + 1, "question": current_q, "answer": correct_ans,
             "image_url": img_url,
             "correct_count": correct_count, "incorrect_count": incorrect_count,
-            "school_scores": db["school_scores"],
+            "school_scores": school_scores_copy,
             "active_users_count": get_active_users_count()
         }
     })
@@ -606,53 +634,39 @@ def next_question():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    db = load_db()
-    if not db["is_started"]:
-        return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
-        
-    current_idx = db["current_index"]
-    
-    if current_idx < len(questions):
-        correct_answer = questions[current_idx]["a"]
-        school_correct_counts = {}
-        
-        for email, player_data in list(db["current_answers"].items()):
-            if not player_data.get("evaluated", False):
-                school = player_data.get("school") or "ไม่ระบุสังกัด"
-                if is_correct(player_data["answer"], correct_answer):
-                    school_correct_counts[school] = school_correct_counts.get(school, 0) + 1
-                    db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
-                player_data["evaluated"] = True
-                
-        for school, count in school_correct_counts.items():
-            if school not in db["school_scores"]:
-                db["school_scores"][school] = 0
+    with data_lock:
+        db = load_db()
+        if not db["is_started"]:
+            return jsonify({"status": "error", "message": "เกมยังไม่ได้เริ่ม"}), 400
             
-            earned_points = calculate_team_points(count)
-            db["school_scores"][school] += earned_points
+        current_idx = db["current_index"]
+        
+        # รันการเคลียร์คะแนนสำหรับผู้เล่นที่ตกค้าง (ถ้าแอดมินกด Next โดยข้ามปุ่ม Timeout)
+        evaluate_current_answers(db)
 
-    if (current_idx + 1) >= len(questions):
-        db["is_end"] = True
+        if (current_idx + 1) >= len(questions):
+            db["is_end"] = True
+            save_db(db)
+            return jsonify({
+                "status": "success", 
+                "state": {
+                    "is_started": True, "is_time_up": True, "is_end": True,
+                    "current_number": current_idx + 1, "question": "", "answer": "-", "image_url": "",
+                    "correct_count": 0, "incorrect_count": 0,
+                    "school_scores": dict(db["school_scores"]),
+                    "active_users_count": get_active_users_count()
+                }
+            })
+
+        db["current_index"] = current_idx + 1
+        db["is_time_up"] = False
+        db["current_answers"] = {} 
         save_db(db)
-        return jsonify({
-            "status": "success", 
-            "state": {
-                "is_started": True, "is_time_up": True, "is_end": True,
-                "current_number": current_idx + 1, "question": "", "answer": "-", "image_url": "",
-                "correct_count": 0, "incorrect_count": 0,
-                "school_scores": db["school_scores"],
-                "active_users_count": get_active_users_count()
-            }
-        })
-
-    db["current_index"] = current_idx + 1
-    db["is_time_up"] = False
-    db["current_answers"] = {} 
-    save_db(db)
-    
-    next_q = questions[db["current_index"]]["q"]
-    next_a = questions[db["current_index"]]["a"]
-    next_img = questions[db["current_index"]].get("image_url", "")
+        
+        next_q = questions[db["current_index"]]["q"]
+        next_a = questions[db["current_index"]]["a"]
+        next_img = questions[db["current_index"]].get("image_url", "")
+        school_scores_copy = dict(db["school_scores"])
     
     return jsonify({
         "status": "success",
@@ -661,7 +675,7 @@ def next_question():
             "current_number": db["current_index"] + 1, "question": next_q, "answer": next_a,
             "image_url": next_img,
             "correct_count": 0, "incorrect_count": 0,
-            "school_scores": db["school_scores"],
+            "school_scores": school_scores_copy,
             "active_users_count": get_active_users_count()
         }
     })
@@ -672,7 +686,9 @@ def reset_game():
     if session.get('role') != 'admin':
          return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
          
-    save_db(get_default_state())
+    with data_lock:
+        save_db(get_default_state())
+        
     return jsonify({
         "status": "success",
         "state": {
@@ -685,7 +701,7 @@ def reset_game():
     })
 
 
-# 🛠️ [แก้ไขจุดบกพร่อง] เปลี่ยนมาใช้ไลบรารี requests เพื่อรองรับการ Redirect (302) ของ Google Web App
+# 🛠️ ส่งข้อมูลผ่าน HTTP POST Webhook ไปยัง Google Sheet
 def send_to_gsheet(email, name, school, question_number, answer):
     webhook_url = "https://script.google.com/macros/s/AKfycbw9Xeju85-zSYqmDcB9xwphkOLZaAwoEexvi-vU5nCRHWsgtSc_LLdJrOzEWri09bNt/exec"
     
@@ -696,12 +712,11 @@ def send_to_gsheet(email, name, school, question_number, answer):
         "email": email,
         "name": name,
         "school": school,
-        "question_number": int(question_number), # บังคับเป็นตัวเลขจำนวนเต็มเพื่อความปลอดภัย
+        "question_number": int(question_number),
         "answer": str(answer)
     }
     
     try:
-        # ใช้ requests.post เพื่อให้ระบบจัดการ Follow Redirect อัตโนมัติอย่างมั่นคง
         response = requests.post(webhook_url, json=data, timeout=5)
         print(f"Sync to Google Sheet complete. Status Code: {response.status_code}")
     except Exception as e:
@@ -711,44 +726,48 @@ def send_to_gsheet(email, name, school, question_number, answer):
 # API สำหรับการส่งคำตอบ
 @app.route('/api/submit', methods=['POST'])
 def submit_answer():
-    db = load_db()
-    if db["is_time_up"] or db["is_end"] or not db["is_started"]:
-        return jsonify({'status': 'error', 'message': 'ระบบไม่ได้เปิดรับคำตอบในขณะนี้'}), 400
+    with data_lock:
+        db = load_db()
+        if db["is_time_up"] or db["is_end"] or not db["is_started"]:
+            return jsonify({'status': 'error', 'message': 'ระบบไม่ได้เปิดรับคำตอบในขณะนี้'}), 400
+            
+        data = request.json or {}
+        player_answer = data.get('answer', '')
+        email = session.get('email') or data.get('player_id')
         
-    data = request.json or {}
-    player_answer = data.get('answer', '')
-    email = session.get('email') or data.get('player_id')
-    
-    school = data.get('school') or session.get('school') or session.get('name') or "ไม่ระบุสังกัด"
-    name = session.get('name', 'ผู้เล่น')
-    
-    if not email:
-        return jsonify({'status': 'error', 'message': 'ไม่พบข้อมูลผู้ใช้งาน'}), 401
+        school = data.get('school') or session.get('school') or session.get('name') or "ไม่ระบุสังกัด"
+        name = session.get('name', 'ผู้เล่น')
         
-    db["current_answers"][email] = {
-        "answer": player_answer,
-        "school": school, 
-        "name": name,
-        "evaluated": False
-    }
+        if not email:
+            return jsonify({'status': 'error', 'message': 'ไม่พบข้อมูลผู้ใช้งาน'}), 401
+            
+        db["current_answers"][email] = {
+            "answer": player_answer,
+            "school": school, 
+            "name": name,
+            "evaluated": False
+        }
+        
+        active_users_memory[email] = time.time()
+        save_db(db)
+        
+        current_question_number = db["current_index"] + 1
     
-    active_users_memory[email] = time.time()
-    save_db(db)
-    
-    # ดึงลำดับข้อปัจจุบันส่งไปเก็บใน Google Sheets
-    current_question_number = db["current_index"] + 1
-    
-    # ส่งคำตอบเข้า Google Sheet ทันที
-    send_to_gsheet(email, name, school, current_question_number, player_answer)
+    # 🎯 เรียกกงานผ่าน Thread เบื้องหลัง (Background Thread) ผู้เล่นจะได้ไม่ต้องรอโหลดหน้าเว็บ
+    threading.Thread(
+        target=send_to_gsheet, 
+        args=(email, name, school, current_question_number, player_answer)
+    ).start()
     
     return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
 
 
 @app.route('/api/my-score')
 def get_my_score():
-    db = load_db()
-    email = session.get('email')
-    score = db["player_scores"].get(email, 0)
+    with data_lock:
+        db = load_db()
+        email = session.get('email')
+        score = db["player_scores"].get(email, 0)
     return jsonify({"score": score})
 
 
@@ -768,22 +787,24 @@ def sheet_update_score():
     except ValueError:
         return jsonify({"status": "error", "message": "คะแนนต้องเป็นตัวเลขจำนวนเต็ม"}), 400
         
-    db = load_db()
-    
-    old_player_score = db["player_scores"].get(email, 0)
-    score_delta = new_score - old_player_score
-    
-    db["player_scores"][email] = new_score
-    
-    if school:
-        if school not in db["school_scores"]:
-            db["school_scores"][school] = 0
-        db["school_scores"][school] += score_delta
+    with data_lock:
+        db = load_db()
         
-        if db["school_scores"][school] < 0:
-            db["school_scores"][school] = 0
+        old_player_score = db["player_scores"].get(email, 0)
+        score_delta = new_score - old_player_score
+        
+        db["player_scores"][email] = new_score
+        
+        if school:
+            if school not in db["school_scores"]:
+                db["school_scores"][school] = 0
+            db["school_scores"][school] += score_delta
             
-    save_db(db)
+            if db["school_scores"][school] < 0:
+                db["school_scores"][school] = 0
+                
+        save_db(db)
+        
     return jsonify({"status": "success", "message": "ซิงค์ข้อมูลลงหน้าเว็บและทีมสำเร็จแล้ว!"})
 
 

@@ -116,7 +116,6 @@
             margin-bottom: 12px;
         }
         
-        /* 🌟 เพิ่ม CSS สำหรับ Math Toolbar */
         .math-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -146,7 +145,6 @@
         .math-toolbar button:active {
             background-color: #dee2e6;
         }
-        /* 🌟 สิ้นสุด CSS Math Toolbar */
 
         .math-preview-box {
             background-color: #f8f9fa;
@@ -319,47 +317,38 @@
     let teamName = localStorage.getItem('quiz_team_name');
     let gamePollingInterval = null;
 
-    // 🌟 เพิ่มฟังก์ชันสำหรับแทรกสัญลักษณ์คณิตศาสตร์จาก Toolbar
     function insertMath(symbol) {
         const input = document.getElementById('answer-input'); 
         
-        // ถ้าช่องถูกล็อคอยู่ (ส่งคำตอบไปแล้วหรือหมดเวลา) ไม่ต้องทำอะไร
         if (!input || input.disabled) return;
 
         const start = input.selectionStart;
         const end = input.selectionEnd;
         const text = input.value;
         
-        // แทรกข้อความ LaTeX ลงไป
         input.value = text.substring(0, start) + symbol + text.substring(end);
         
-        // คำนวณตำแหน่งเคอร์เซอร์ใหม่
         let cursorOffset = symbol.length;
         if (symbol.includes('{}')) {
-            cursorOffset -= 2; // ถอยกลับไปอยู่ในปีกกาสุดท้าย
+            cursorOffset -= 2;
         } else if (symbol.includes('}{')) {
-            cursorOffset -= 3; // ถอยกลับไปอยู่ในปีกกาแรกของเศษส่วน
+            cursorOffset -= 3;
         } else if (symbol === '$$...$$') {
-            cursorOffset -= 3; // ถอยกลับไปอยู่ใน $$
+            cursorOffset -= 3;
         }
         
         input.focus();
         input.setSelectionRange(start + cursorOffset, start + cursorOffset);
         
-        // อัปเดต Preview ทันที
         renderMathPreview(); 
     }
-    // 🌟 สิ้นสุดฟังก์ชันแทรกสัญลักษณ์คณิตศาสตร์
 
-    // 📌 ฟังก์ชันดึงรายชื่อโรงเรียนจากเซิร์ฟเวอร์แบบ Dynamic Real-time
     function updateSchoolList() {
         const provinceInput = document.getElementById('province-input');
         const schoolInput = document.getElementById('school-input');
         const schoolDatalist = document.getElementById('school-list');
         
         const selectedProvince = provinceInput.value.trim();
-        
-        // ล้างตัวเลือกเก่าออกก่อนทุกครั้ง
         schoolDatalist.innerHTML = '';
         
         if (!selectedProvince) {
@@ -372,7 +361,6 @@
         schoolInput.placeholder = "⏳ กำลังโหลดรายชื่อโรงเรียนในจังหวัด...";
         schoolInput.disabled = true;
 
-        // ดึงรายชื่อโรงเรียนทั้งหมดของจังหวัดนั้นๆ ผ่าน API หลังบ้าน
         fetch(`/api/schools?province=${encodeURIComponent(selectedProvince)}`)
         .then(res => res.json())
         .then(schools => {
@@ -385,20 +373,17 @@
                 schoolInput.disabled = false;
                 schoolInput.placeholder = "🏫 พิมพ์ค้นหาหรือเลือกโรงเรียนของคุณ...";
             } else {
-                // กรณีพิมพ์จังหวัดแปลกๆ หรือไม่พบข้อมูลในระบบ ให้เปิดสิทธิ์ให้ผู้เล่นพิมพ์ชื่อเองได้อย่างอิสระ
                 schoolInput.disabled = false;
                 schoolInput.placeholder = "🏫 พิมพ์ชื่อโรงเรียนของคุณเองได้เลย...";
             }
         })
         .catch(err => {
             console.error('Error fetching schools:', err);
-            // กรณีระบบขัดข้อง สำรองข้อมูลให้พิมพ์มือเองได้ เพื่อไม่ให้ระบบล่มหน้างาน
             schoolInput.disabled = false;
             schoolInput.placeholder = "🏫 พิมพ์ชื่อโรงเรียนของคุณเองได้เลย...";
         });
     }
 
-    // 📌 [แก้ไขแล้ว] อัปเดตการแสดงผล MathJax แบบอัตโนมัติ
     function renderMathPreview() {
         const inputStr = document.getElementById('answer-input').value;
         const previewBox = document.getElementById('math-preview');
@@ -408,8 +393,6 @@
             return;
         }
 
-        // 📌 บังคับครอบด้วย $$ อัตโนมัติ (ถ้าผู้เล่นไม่ได้พิมพ์ $ มา)
-        // เพื่อให้แปลงเป็นสมการคณิตศาสตร์เสมอ
         let mathString = inputStr;
         if (!mathString.includes('$')) {
             mathString = '$$' + mathString + '$$';
@@ -418,7 +401,6 @@
         previewBox.innerText = mathString;
 
         if (window.MathJax) {
-            // 📌 ล้างแคชการแสดงผลเดิมก่อน เพื่อป้องกันพรีวิวค้างหรือไม่ยอมอัปเดต
             MathJax.typesetClear([previewBox]);
             MathJax.typesetPromise([previewBox]).catch(function (err) {
                 console.warn("MathJax Error: ", err.message);
@@ -449,7 +431,6 @@
         }
     }
 
-    // 🚀 [แก้ไขใหม่] ส่งชื่อโรงเรียนที่เลือกไปหลังบ้าน (app.py) เพื่อบันทึกเข้า Google Sheet
     function saveTeamName() {
         const provinceVal = document.getElementById('province-input').value.trim();
         const schoolVal = document.getElementById('school-input').value.trim();
@@ -583,6 +564,7 @@
         .catch(err => console.error('Error fetching game state:', err));
     }
 
+    // 🛠️ [ส่วนที่แก้ไข] ปรับแต่ง Payload ให้ส่งข้อมูลครบถ้วนตามโครงสร้าง Apps Script
     function submitAnswer(event) {
         event.preventDefault();
         
@@ -596,13 +578,16 @@
         submitBtn.disabled = true;
         submitBtn.innerText = 'กำลังส่ง...';
 
+        // ส่งข้อมูลที่มี Key ตรงกับที่หลังบ้าน (app.py) และ Google Apps Script ต้องการตรวจทาน
         fetch('/api/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                school: teamName,  
-                player_id: playerId,  
-                answer: answerText
+                email: playerId,                          // 🌟 ส่งอีเมลผู้ใช้งาน (จากเดิม player_id)
+                name: playerName,                        // 🌟 ส่งชื่อจริงของ User ที่ดึงมาจาก Google Login
+                school: teamName,                        // ส่งชื่อโรงเรียน (ทีม)
+                question_number: currentQuestionNumber, // 🌟 ส่งเลขข้อที่ระบบกำลังเปิดทำอยู่ขณะนั้น
+                answer: answerText                       // ส่งคำตอบที่ผู้เล่นกรอก
             })
         })
         .then(res => res.json())
@@ -622,6 +607,7 @@
         })
         .catch(err => {
             console.error('Error submitting answer:', err);
+            resultMsg.innerHTML = `<span style="color: #f44336;">⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้</span>`;
             submitBtn.disabled = false;
             submitBtn.innerText = 'ส่งคำตอบ (Submit)';
         });

@@ -7,7 +7,7 @@ import re
 import urllib.request
 import urllib.error
 import base64
-import threading  # 🎯 จัดการระบบ Lock และ Background Thread
+import threading
 import requests
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -57,7 +57,7 @@ if os.path.exists(QUESTIONS_FILE):
     except Exception as e:
         print("Error loading questions file:", e)
 
-# 📌 ฟังก์ชันสร้าง State เริ่มต้น (เพิ่ม "challenges" เก็บรายการโต้แย้ง)
+# 📌 ฟังก์ชันสร้าง State เริ่มต้น
 def get_default_state():
     return {
         "is_started": False,
@@ -67,7 +67,7 @@ def get_default_state():
         "school_scores": {},  
         "player_scores": {},  
         "current_answers": {},
-        "challenges": []  # 🎯 เพิ่มโครงสร้างเก็บคำขอโต้แย้ง (Challenge)
+        "challenges": []  # 🎯 โครงสร้างเก็บคำขอโต้แย้ง (Challenge)
     }
 
 # 🚀 สร้างตัวแปร Global เก็บสถานะเกม
@@ -190,7 +190,7 @@ def parse_text_to_questions(text):
 
 
 # ==========================================
-# 🏫 API สำหรับส่งรายชื่อโรงเรียน
+# 🏫 API สำหรับรายชื่อโรงเรียนและการลงทะเบียน
 # ==========================================
 @app.route('/api/schools', methods=['GET', 'POST'])
 @app.route('/api/get-schools', methods=['GET', 'POST']) 
@@ -218,6 +218,23 @@ def get_schools():
     ])
     
     return jsonify(school_list)
+
+
+@app.route('/api/register-school', methods=['POST'])
+def register_school():
+    data = request.json or {}
+    school = data.get('school', '').strip()
+    
+    if not school:
+        return jsonify({'status': 'error', 'message': 'กรุณาระบุชื่อโรงเรียน'}), 400
+
+    session['school'] = school
+    email = session.get('email')
+    name = session.get('name', 'ผู้เล่น')
+    
+    threading.Thread(target=send_to_gsheet, args=(email, name, school, 0, "เข้าร่วมเกม")).start()
+    
+    return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและลงทะเบียนเรียบร้อยแล้ว'})
 
 
 # ==========================================
@@ -270,6 +287,9 @@ def google_login():
         return jsonify({"status": "error", "message": "Token ไม่ถูกต้องหรือหมดอายุ"}), 400
 
 
+# ==========================================
+# 🔄 API สำหรับติดตามสถานะเกม
+# ==========================================
 @app.route('/api/state')
 def get_state():
     with data_lock:
@@ -289,7 +309,7 @@ def get_state():
         incorrect_count = 0
         img_url = ""
 
-        # 🎯 ข้อมูลเฉพาะของผู้เล่นที่ส่ง Request มา
+        # ข้อมูลเฉพาะของผู้เล่นที่ส่ง Request มา
         my_answer = ""
         my_is_correct = False
         has_challenged = False
@@ -335,14 +355,51 @@ def get_state():
         "school_scores": school_scores_copy,
         "active_users_count": get_active_users_count(),
         "pending_challenges_count": pending_challenges_count,
-        # 🎯 เพิ่มข้อมูลส่วนตัวของผู้เล่นส่งไปให้ Frontend
         "my_answer": my_answer,
         "my_is_correct": my_is_correct,
         "has_challenged": has_challenged
     })
 
 
-# 3️⃣ ฝั่งแอดมิน: กดอนุมัติ (Approve) หรือปฏิเสธ (Reject) - เติมส่วนที่ขาด
+# ==========================================
+# ⚔️ API ระบบส่งและอนุมัติ ชาเลนจ์ (Challenge)
+# ==========================================
+@app.route('/api/challenge', methods=['POST'])
+def submit_challenge():
+    data = request.json or {}
+    email = (session.get('email') or data.get('email', '')).strip().lower()
+    name = session.get('name') or data.get('name', 'ผู้เล่น')
+    school = data.get('school') or session.get('school', 'ไม่ระบุสังกัด')
+    q_num = data.get('question_number')
+    reason = data.get('reason', '').strip()
+
+    if not email or q_num is None or not reason:
+        return jsonify({'status': 'error', 'message': 'ข้อมูลไม่ครบถ้วน'}), 400
+
+    with data_lock:
+        db = load_db()
+        # ตรวจสอบว่าเคยยื่นคำขอข้อนี้ไปหรือยัง
+        existing = any(
+            c for c in db.get("challenges", [])
+            if c.get('email', '').lower() == email and str(c.get('question_number')) == str(q_num)
+        )
+        if existing:
+            return jsonify({'status': 'error', 'message': 'คุณได้ส่งคำขอชาเลนจ์สำหรับข้อนี้ไปแล้ว'}), 400
+
+        db["challenges"].append({
+            "email": email,
+            "name": name,
+            "school": school,
+            "question_number": int(q_num),
+            "reason": reason,
+            "status": "pending",
+            "timestamp": time.time()
+        })
+        save_db(db)
+
+    return jsonify({'status': 'success', 'message': 'ส่งคำขอชาเลนจ์เรียบร้อยแล้ว'})
+
+
 @app.route('/api/resolve-challenge', methods=['POST'])
 def resolve_challenge():
     if session.get('role') != 'admin':
@@ -376,21 +433,11 @@ def resolve_challenge():
         save_db(db)
 
     return jsonify({'status': 'success', 'message': f'ดำเนินการ {action} เรียบร้อยแล้ว'})
-        
-    session['school'] = school
-    
-    email = session.get('email')
-    name = session.get('name', 'ผู้เล่น')
-    
-    threading.Thread(target=send_to_gsheet, args=(email, name, school, 0, "เข้าร่วมเกม")).start()
-    
-    return jsonify({'status': 'success', 'message': 'บันทึกโรงเรียนและลงทะเบียนเรียบร้อยแล้ว'})
 
 
 # ==========================================
 # 🎮 ระบบควบคุมเกมและคำนวณคะแนน (API)
 # ==========================================
-
 @app.route('/api/upload-questions', methods=['POST'])
 def upload_questions():
     if session.get('role') != 'admin':
@@ -635,58 +682,6 @@ def start_game():
     })
 
 
-@app.route('/api/state')
-def get_state():
-    with data_lock:
-        db = load_db()
-        email = session.get('email')
-        if email and session.get('role') == 'user':
-            active_users_memory[email] = time.time()
-            
-        if len(questions) > 0 and db["current_index"] >= len(questions):
-            db["is_end"] = True
-            db["current_index"] = max(0, len(questions) - 1)
-            save_db(db)
-
-        current_q = ""
-        correct_ans = ""
-        correct_count = 0
-        incorrect_count = 0
-        img_url = ""
-
-        if db["is_started"] and len(questions) > 0:
-            current_idx = db["current_index"]
-            current_q = questions[current_idx]["q"] if not db["is_end"] else ""
-            correct_ans = questions[current_idx]["a"]
-            img_url = questions[current_idx].get("image_url", "")
-            
-            for p_email, player_data in db.get("current_answers", {}).items():
-                if is_correct(player_data.get("answer"), correct_ans):
-                    correct_count += 1
-                else:
-                    incorrect_count += 1
-        
-        school_scores_copy = dict(db["school_scores"])
-        
-        # 🎯 นับจำนวนคำขอชาเลนจ์ที่รออนุมัติ (Pending Challenges)
-        pending_challenges_count = len([c for c in db.get("challenges", []) if c.get('status') == 'pending'])
-
-    return jsonify({
-        "is_started": db["is_started"],
-        "is_time_up": db["is_time_up"],
-        "is_end": db["is_end"],
-        "current_number": db["current_index"] + 1,
-        "question": current_q,
-        "answer": correct_ans,
-        "image_url": img_url,
-        "correct_count": correct_count,
-        "incorrect_count": incorrect_count,
-        "school_scores": school_scores_copy,
-        "active_users_count": get_active_users_count(),
-        "pending_challenges_count": pending_challenges_count  # 🎯 ส่งข้อมูลไปให้หน้า Admin แสดงผล
-    })
-
-
 @app.route('/api/timeout', methods=['POST'])
 def trigger_timeout():
     if session.get('role') != 'admin':
@@ -823,7 +818,7 @@ def submit_answer():
             
         data = request.json or {}
         player_answer = data.get('answer', '')
-        email = session.get('email') or data.get('player_id')
+        email = session.get('email') or data.get('email') or data.get('player_id')
         
         school = data.get('school') or session.get('school') or session.get('name') or "ไม่ระบุสังกัด"
         name = session.get('name', 'ผู้เล่น')
@@ -860,7 +855,7 @@ def get_my_score():
     return jsonify({"score": score})
 
 
-# API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์
+# API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์ (ส่วนที่ถูกตัดจบเดิม)
 @app.route('/api/sheet-update-score', methods=['POST'])
 def sheet_update_score():
     data = request.json or {}
@@ -873,136 +868,18 @@ def sheet_update_score():
         
     try:
         new_score = int(new_score)
+        with data_lock:
+            db = load_db()
+            db["player_scores"][email] = new_score
+            if school:
+                db["school_scores"][school] = db["school_scores"].get(school, 0) + new_score
+            save_db(db)
+        return jsonify({"status": "success", "message": "อัปเดตคะแนนสำเร็จ"})
     except ValueError:
-        return jsonify({"status": "error", "message": "คะแนนต้องเป็นตัวเลขจำนวนเต็ม"}), 400
-        
-    with data_lock:
-        db = load_db()
-        
-        old_player_score = db["player_scores"].get(email, 0)
-        score_delta = new_score - old_player_score
-        
-        db["player_scores"][email] = new_score
-        
-        if school:
-            if school not in db["school_scores"]:
-                db["school_scores"][school] = 0
-            db["school_scores"][school] += score_delta
-            
-            if db["school_scores"][school] < 0:
-                db["school_scores"][school] = 0
-                
-        save_db(db)
-        
-    return jsonify({"status": "success", "message": "ซิงค์ข้อมูลลงหน้าเว็บและทีมสำเร็จแล้ว!"})
+        return jsonify({"status": "error", "message": "รูปแบบคะแนนไม่ถูกต้อง"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
 
-# ==========================================
-# 🎯 API ใหม่: ระบบโต้แย้ง/คัดค้านคำตอบ (Challenge System)
-# ==========================================
-
-# 1️⃣ ฝั่งผู้เล่น: กดส่งคำขอโต้แย้งคำตอบ
-@app.route('/api/challenge', methods=['POST'])
-def submit_challenge():
-    data = request.json or {}
-    
-    email = (session.get('email') or data.get('email', '')).strip().lower()
-    name = session.get('name') or data.get('name') or 'ผู้เล่น'
-    school = session.get('school') or data.get('school') or "ไม่ระบุสังกัด"
-    q_num = data.get('question_number')
-    reason = data.get('reason', '').strip()
-
-    if not email:
-        return jsonify({'status': 'error', 'message': 'ไม่พบข้อมูลผู้ใช้งาน'}), 401
-
-    if not reason:
-        return jsonify({'status': 'error', 'message': 'กรุณาระบุเหตุผลในการโต้แย้ง'}), 400
-
-    with data_lock:
-        db = load_db()
-        challenges = db.setdefault("challenges", [])
-        
-        # เช็คว่าเคยส่งโต้แย้งข้อนี้ไปแล้วหรือยัง
-        already_sent = any(c for c in challenges if c['email'].lower() == email and str(c['question_number']) == str(q_num))
-        if already_sent:
-            return jsonify({'status': 'error', 'message': 'คุณเคยส่งคำขอโต้แย้งสำหรับข้อนี้ไปแล้ว'}), 400
-
-        # บันทึกคำขอชาเลนจ์
-        challenges.append({
-            'email': email,
-            'name': name,
-            'school': school,
-            'question_number': int(q_num) if str(q_num).isdigit() else q_num,
-            'reason': reason,
-            'status': 'pending',
-            'timestamp': time.time()
-        })
-        save_db(db)
-
-    return jsonify({'status': 'success', 'message': 'ส่งคำขอโต้แย้งไปยังแอดมินเรียบร้อยแล้ว'})
-
-
-# 2️⃣ ฝั่งแอดมิน: ดึงรายการคำขอโต้แย้งที่ยังรอการตรวจ (Pending)
-@app.route('/api/challenges', methods=['GET'])
-def get_challenges():
-    if session.get('role') != 'admin':
-        return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
-
-    with data_lock:
-        db = load_db()
-        pending_challenges = [c for c in db.get("challenges", []) if c.get('status') == 'pending']
-
-    return jsonify({'status': 'success', 'challenges': pending_challenges})
-
-
-# 3️⃣ ฝั่งแอดมิน: กดอนุมัติ (Approve) หรือปฏิเสธ (Reject)
-@app.route('/api/resolve-challenge', methods=['POST'])
-def resolve_challenge():
-    if session.get('role') != 'admin':
-        return jsonify({"status": "error", "message": "ไม่มีสิทธิ์ทำรายการ"}), 403
-
-    data = request.json or {}
-    email = data.get('email', '').strip().lower()
-    q_num = data.get('question_number')
-    action = data.get('action') # 'approve' หรือ 'reject'
-
-    if not email or q_num is None or not action:
-        return jsonify({'status': 'error', 'message': 'ข้อมูลไม่ครบถ้วน'}), 400
-
-    with data_lock:
-        db = load_db()
-        challenges = db.get("challenges", [])
-        
-        # ค้นหาคำขอชาเลนจ์ที่ตรงกัน
-        target = next((c for c in challenges if c['email'].lower() == email and str(c['question_number']) == str(q_num) and c['status'] == 'pending'), None)
-        
-        if not target:
-            return jsonify({'status': 'error', 'message': 'ไม่พบรายการคำขอโต้แย้งที่รอการอนุมัติ'}), 404
-
-        if action == 'approve':
-            target['status'] = 'approved'
-            
-            # 1. เพิ่มคะแนนส่วนบุคคล (+1)
-            db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
-            
-            # 2. เพิ่มคะแนนโรงเรียน/สังกัด (+1)
-            school = target.get('school') or "ไม่ระบุสังกัด"
-            db["school_scores"][school] = db["school_scores"].get(school, 0) + 1
-            
-            save_db(db)
-            return jsonify({'status': 'success', 'message': 'อนุมัติคำขอโต้แย้ง และปรับเพิ่มคะแนนเรียบร้อยแล้ว'})
-
-        elif action == 'reject':
-            target['status'] = 'rejected'
-            save_db(db)
-            return jsonify({'status': 'success', 'message': 'ปฏิเสธคำขอโต้แย้งเรียบร้อยแล้ว'})
-
-        else:
-            return jsonify({'status': 'error', 'message': 'คำสั่งไม่ถูกต้อง (รองรับเฉพาะ approve หรือ reject)'}), 400
-
-
-# ==========================================
-# 🚀 รันระบบ Server (Entry Point)
-# ==========================================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

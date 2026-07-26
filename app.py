@@ -902,3 +902,39 @@ def resolve_challenge():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+    # ค้นหาคำขอชาเลนจ์ที่ตรงกัน
+        target = next((c for c in challenges if c['email'].lower() == email and str(c['question_number']) == str(q_num) and c['status'] == 'pending'), None)
+        
+        if not target:
+            return jsonify({'status': 'error', 'message': 'ไม่พบรายการคำขอโต้แย้งที่รอการอนุมัติ'}), 404
+
+        if action == 'approve':
+            target['status'] = 'approved'
+            
+            # 1. เพิ่มคะแนนส่วนบุคคล (+1)
+            db["player_scores"][email] = db["player_scores"].get(email, 0) + 1
+            
+            # 2. ปรับเพิ่มคะแนนของโรงเรียน/สังกัด
+            school = target.get('school') or "ไม่ระบุสังกัด"
+            if school not in db["school_scores"]:
+                db["school_scores"][school] = 0
+            db["school_scores"][school] += 1
+            
+            save_db(db)
+            return jsonify({'status': 'success', 'message': 'อนุมัติคำขอโต้แย้ง และปรับเพิ่มคะแนนเรียบร้อยแล้ว'})
+
+        elif action == 'reject':
+            target['status'] = 'rejected'
+            save_db(db)
+            return jsonify({'status': 'success', 'message': 'ปฏิเสธคำขอโต้แย้งเรียบร้อยแล้ว'})
+
+        else:
+            return jsonify({'status': 'error', 'message': 'คำสั่งไม่ถูกต้อง (ระบุได้เฉพาะ approve หรือ reject)'}), 400
+
+
+# ==========================================
+# 🚀 รันระบบ Server (Entry Point)
+# ==========================================
+if __name__ == '__main__':
+    # รันบน Port 5000 (สามารถปรับเปลี่ยนได้ตามต้องการ)
+    app.run(host='0.0.0.0', port=5000, debug=True)

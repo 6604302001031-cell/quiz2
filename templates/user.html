@@ -826,7 +826,8 @@
     }
 
     function submitChallenge() {
-        const reason = document.getElementById('challenge-reason').value.trim();
+        const reasonInput = document.getElementById('challenge-reason');
+        const reason = reasonInput.value.trim();
         const submitBtn = document.getElementById('submit-challenge-btn');
 
         if (!reason) {
@@ -835,7 +836,7 @@
         }
 
         submitBtn.disabled = true;
-        submitBtn.innerText = 'กำลังส่ง...';
+        submitBtn.innerText = 'กำลังส่งคำขอ...';
 
         fetch('/api/challenge', {
             method: 'POST',
@@ -851,79 +852,35 @@
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว แอดมินกำลังพิจารณาครับ');
+                alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว แอดมินจะทำการตรวจสอบครับ');
                 hasChallengedCurrentQuestion = true;
+                
                 document.getElementById('challenge-box').style.display = 'none';
                 closeChallengeModal();
             } else {
-                alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถส่งชาเลนจ์ได้'));
+                alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถส่งคำขอได้'));
                 submitBtn.disabled = false;
                 submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
             }
         })
         .catch(err => {
             console.error('Error submitting challenge:', err);
-            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
             submitBtn.disabled = false;
             submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
         });
     }
 
-    // เรียกใช้ระบบเมื่อหน้าเว็บโหลดเสร็จสมบูรณ์
-    document.addEventListener('DOMContentLoaded', () => {
-        // รองรับการกด Ctrl + Enter ในกล่องชาเลนจ์เพื่อส่งคำขอ
-        const reasonInput = document.getElementById('challenge-reason');
-        if (reasonInput) {
-            reasonInput.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.key === 'Enter') {
-                    e.preventDefault();
-                    submitChallenge();
-                }
-            });
-        }
-       fetch('/api/challenge', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: playerId,
-                    name: playerName,
-                    school: teamName,
-                    question_number: currentQuestionNumber,
-                    reason: reason
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว แอดมินจะทำการตรวจสอบครับ');
-                    hasChallengedCurrentQuestion = true;
-                    
-                    // ซ่อนปุ่มชาเลนจ์ในหน้านี้ทันทีหลังส่งสำเร็จ
-                    document.getElementById('challenge-box').style.display = 'none';
-                    closeChallengeModal();
-                } else {
-                    alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถส่งคำขอได้'));
-                    submitBtn.disabled = false;
-                    submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
-                }
-            })
-            .catch(err => {
-                console.error('Error submitting challenge:', err);
-                alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
-                submitBtn.disabled = false;
-                submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
-            });
-    }
-
     // รองรับการกด Ctrl + Enter ใน Textarea เพื่อส่งชาเลนจ์ทันที
-    document.getElementById('challenge-reason')?.addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    document.addEventListener('keydown', function(e) {
+        const reasonInput = document.getElementById('challenge-reason');
+        if (document.activeElement === reasonInput && (e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
             submitChallenge();
         }
     });
 
-    // เริ่มต้นทำงานทันทีเมื่อโหลดหน้าเว็บเสร็จสมบูรณ์
+    // เริ่มต้นทำงานเมื่อโหลดหน้าเว็บเสร็จสมบูรณ์
     document.addEventListener('DOMContentLoaded', () => {
         initPlayer();
     });

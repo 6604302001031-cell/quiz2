@@ -851,15 +851,12 @@
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                closeChallengeModal();
+                alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว แอดมินกำลังพิจารณาครับ');
                 hasChallengedCurrentQuestion = true;
-                
-                const challengeBox = document.getElementById('challenge-box');
-                challengeBox.style.display = 'none'; // ซ่อนปุ่มเมื่อส่งชาเลนจ์แล้ว
-                
-                alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว! กรุณารอแอดมินพิจารณา');
+                document.getElementById('challenge-box').style.display = 'none';
+                closeChallengeModal();
             } else {
-                alert('เกิดข้อผิดพลาด: ' + data.message);
+                alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถส่งชาเลนจ์ได้'));
                 submitBtn.disabled = false;
                 submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
             }
@@ -872,21 +869,21 @@
         });
     }
 
-    // Event Listeners เพิ่มเติม
-    document.getElementById('school-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') saveTeamName();
-    });
-    document.getElementById('province-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') document.getElementById('school-input').focus();
-    });
-    document.getElementById('challenge-reason').addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            submitChallenge();
+    // เรียกใช้ระบบเมื่อหน้าเว็บโหลดเสร็จสมบูรณ์
+    document.addEventListener('DOMContentLoaded', () => {
+        // รองรับการกด Ctrl + Enter ในกล่องชาเลนจ์เพื่อส่งคำขอ
+        const reasonInput = document.getElementById('challenge-reason');
+        if (reasonInput) {
+            reasonInput.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    submitChallenge();
+                }
+            });
         }
+        
+        initPlayer();
     });
-
-    window.onload = initPlayer;
 </script>
-
 </body>
 </html>

@@ -191,6 +191,81 @@
             cursor: not-allowed;
             box-shadow: none;
         }
+
+        /* 🌟 [เพิ่มใหม่] CSS สำหรับปุ่มชาเลนจ์ และ Modal */
+        .btn-warning {
+            background-color: #ff9800;
+            color: white;
+            font-size: 16px;
+            padding: 12px 20px;
+        }
+        .btn-warning:hover {
+            background-color: #e68a00;
+        }
+        .btn-warning:disabled {
+            background-color: #ced4da;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+            font-size: 16px;
+            padding: 12px 20px;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-card {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .timer-badge {
+            display: inline-block;
+            background: #ffe3e3;
+            color: #d9534f;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        .challenge-textarea {
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 15px;
+            box-sizing: border-box;
+            resize: vertical;
+            margin: 15px 0;
+        }
+        .challenge-textarea:focus {
+            border-color: #2196f3;
+            outline: none;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+
         .waiting-box {
             padding: 30px;
             border: 2px dashed #dee2e6;
@@ -304,6 +379,33 @@
         </form>
         
         <div id="result-message" class="status-alert"></div>
+
+        <!-- 🌟 [เพิ่มใหม่] กล่องแสดงปุ่มชาเลนจ์ (จะแสดงเมื่อตอบผิด) -->
+        <div id="challenge-box" style="display: none; margin-top: 15px;">
+            <button type="button" id="open-challenge-btn" class="btn btn-warning" onclick="openChallengeModal()">
+                ⚠️ ชาเลนจ์ข้อนี้ (โต้แย้งคำตอบ)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 🌟 [เพิ่มใหม่] Modal สำหรับกรอกเหตุผลการชาเลนจ์พร้อมระบบนับถอยหลัง 1 นาที -->
+<div id="challenge-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <h3 style="margin-top: 0; color: #333;">📢 ส่งคำขอชาเลนจ์ข้อที่ <span id="challenge-q-num">-</span></h3>
+        <p style="font-size: 14px; color: #6c757d; margin-bottom: 5px;">
+            หากคิดว่าคำตอบของคุณถูกต้อง กรุณาอธิบายเหตุผลให้แอดมินพิจารณา
+        </p>
+        <div>
+            เวลาที่เหลือในการส่ง: <div class="timer-badge">⏳ <span id="challenge-timer">01:00</span></div>
+        </div>
+        
+        <textarea id="challenge-reason" class="challenge-textarea" placeholder="พิมพ์อธิบายเหตุผลว่าทำไมคุณคิดว่าคำตอบของคุณถูกต้อง..."></textarea>
+        
+        <div class="modal-actions">
+            <button type="button" id="submit-challenge-btn" class="btn btn-blue" onclick="submitChallenge()">ส่งคำขอชาเลนจ์</button>
+            <button type="button" class="btn btn-secondary" onclick="closeChallengeModal()">ยกเลิก</button>
+        </div>
     </div>
 </div>
 
@@ -316,6 +418,11 @@
     
     let teamName = localStorage.getItem('quiz_team_name');
     let gamePollingInterval = null;
+
+    // 🌟 [เพิ่มใหม่] ตัวแปรสำหรับระบบชาเลนจ์
+    let challengeTimerInterval = null;
+    let challengeTimeLeft = 60;
+    let hasChallengedCurrentQuestion = false;
 
     function insertMath(symbol) {
         const input = document.getElementById('answer-input'); 
@@ -504,6 +611,7 @@
             const answerInput = document.getElementById('answer-input');
             const submitBtn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
+            const challengeBox = document.getElementById('challenge-box');
             
             if (!data.is_started) {
                 waitingScreen.style.display = 'block';
@@ -516,15 +624,19 @@
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';
                 currentQuestionNumber = 0;
                 hasSubmittedThisQuestion = false;
+                hasChallengedCurrentQuestion = false;
+                challengeBox.style.display = 'none';
                 return;
             }
 
             waitingScreen.style.display = 'none';
             quizScreen.style.display = 'block';
 
+            // ขึ้นข้อใหม่
             if (data.current_number !== currentQuestionNumber) {
                 currentQuestionNumber = data.current_number;
                 hasSubmittedThisQuestion = false; 
+                hasChallengedCurrentQuestion = false; // รีเซ็ตสถานะชาเลนจ์
                 
                 answerInput.value = ''; 
                 renderMathPreview(); 
@@ -532,6 +644,12 @@
                 submitBtn.disabled = false;
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';
                 resultMsg.innerText = '';
+                
+                // รีเซ็ตปุ่มชาเลนจ์
+                challengeBox.style.display = 'none';
+                const openCBtn = document.getElementById('open-challenge-btn');
+                openCBtn.disabled = false;
+                openCBtn.innerText = '⚠️ ชาเลนจ์ข้อนี้ (โต้แย้งคำตอบ)';
                 
                 fetchMyScore(); 
                 
@@ -542,6 +660,7 @@
                 document.getElementById('question-number').innerText = '🏁 สิ้นสุดการแข่งขัน';
                 document.getElementById('answer-form').style.display = 'none';
                 resultMsg.innerText = '';
+                challengeBox.style.display = 'none';
                 fetchMyScore(); 
             } else {
                 document.getElementById('question-number').innerText = `ส่งคำตอบข้อที่ ${data.current_number}`;
@@ -559,12 +678,16 @@
                         resultMsg.innerHTML = '<span style="color: #f44336;">❌ คุณไม่ได้ส่งคำตอบในเวลากำหนด</span>';
                     }
                 }
+
+                // 🌟 [เพิ่มใหม่] ลอจิกเปิดปุ่มชาเลนจ์ เมื่อเซิร์ฟเวอร์ส่งกลับมาว่า "ตอบผิด" (data.is_wrong === true)
+                if (data.is_wrong && !hasChallengedCurrentQuestion) {
+                    challengeBox.style.display = 'block';
+                }
             }
         })
         .catch(err => console.error('Error fetching game state:', err));
     }
 
-    // 🛠️ [ส่วนที่แก้ไข] ปรับแต่ง Payload ให้ส่งข้อมูลครบถ้วนตามโครงสร้าง Apps Script
     function submitAnswer(event) {
         event.preventDefault();
         
@@ -578,16 +701,15 @@
         submitBtn.disabled = true;
         submitBtn.innerText = 'กำลังส่ง...';
 
-        // ส่งข้อมูลที่มี Key ตรงกับที่หลังบ้าน (app.py) และ Google Apps Script ต้องการตรวจทาน
         fetch('/api/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email: playerId,                          // 🌟 ส่งอีเมลผู้ใช้งาน (จากเดิม player_id)
-                name: playerName,                        // 🌟 ส่งชื่อจริงของ User ที่ดึงมาจาก Google Login
-                school: teamName,                        // ส่งชื่อโรงเรียน (ทีม)
-                question_number: currentQuestionNumber, // 🌟 ส่งเลขข้อที่ระบบกำลังเปิดทำอยู่ขณะนั้น
-                answer: answerText                       // ส่งคำตอบที่ผู้เล่นกรอก
+                email: playerId,
+                name: playerName,
+                school: teamName,
+                question_number: currentQuestionNumber,
+                answer: answerText
             })
         })
         .then(res => res.json())
@@ -598,6 +720,11 @@
                 submitBtn.innerText = 'ส่งคำตอบสำเร็จแล้ว';
                 answerInput.disabled = true;
                 
+                // หากเซิร์ฟเวอร์ตรวจคำตอบทันที แล้วพบว่าผิด ให้แสดงปุ่มชาเลนจ์
+                if (data.is_wrong) {
+                    document.getElementById('challenge-box').style.display = 'block';
+                }
+
                 fetchMyScore(); 
             } else {
                 resultMsg.innerHTML = `<span style="color: #f44336;">⚠️ เกิดข้อผิดพลาด: ${data.message}</span>`;
@@ -610,6 +737,96 @@
             resultMsg.innerHTML = `<span style="color: #f44336;">⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้</span>`;
             submitBtn.disabled = false;
             submitBtn.innerText = 'ส่งคำตอบ (Submit)';
+        });
+    }
+
+    // 🌟 [เพิ่มใหม่] ฟังก์ชันระบบชาเลนจ์ (เปิด Modal, ถอยหลัง 1 นาที, และส่งคำขอ)
+    function openChallengeModal() {
+        const modal = document.getElementById('challenge-modal');
+        const timerSpan = document.getElementById('challenge-timer');
+        const reasonInput = document.getElementById('challenge-reason');
+        const submitBtn = document.getElementById('submit-challenge-btn');
+
+        document.getElementById('challenge-q-num').innerText = currentQuestionNumber;
+        reasonInput.value = '';
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
+        modal.style.display = 'flex';
+
+        // เริ่มต้นนับถอยหลัง 60 วินาที
+        challengeTimeLeft = 60;
+        timerSpan.innerText = '01:00';
+
+        if (challengeTimerInterval) clearInterval(challengeTimerInterval);
+
+        challengeTimerInterval = setInterval(() => {
+            challengeTimeLeft--;
+            let seconds = challengeTimeLeft < 10 ? '0' + challengeTimeLeft : challengeTimeLeft;
+            timerSpan.innerText = `00:${seconds}`;
+
+            if (challengeTimeLeft <= 0) {
+                clearInterval(challengeTimerInterval);
+                alert('หมดเวลา 1 นาทีในการส่งชาเลนจ์สำหรับข้อนี้!');
+                closeChallengeModal();
+                
+                // ล็อคปุ่มชาเลนจ์เมื่อหมดเวลา
+                const openBtn = document.getElementById('open-challenge-btn');
+                openBtn.disabled = true;
+                openBtn.innerText = '🔒 หมดเวลาส่งชาเลนจ์';
+            }
+        }, 1000);
+    }
+
+    function closeChallengeModal() {
+        if (challengeTimerInterval) clearInterval(challengeTimerInterval);
+        document.getElementById('challenge-modal').style.display = 'none';
+    }
+
+    function submitChallenge() {
+        const reason = document.getElementById('challenge-reason').value.trim();
+        const submitBtn = document.getElementById('submit-challenge-btn');
+
+        if (!reason) {
+            alert('กรุณากรอกเหตุผลการชาเลนจ์ก่อนส่งครับ');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'กำลังส่ง...';
+
+        fetch('/api/challenge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: playerId,
+                name: playerName,
+                school: teamName,
+                question_number: currentQuestionNumber,
+                reason: reason
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                closeChallengeModal();
+                hasChallengedCurrentQuestion = true;
+                
+                const openBtn = document.getElementById('open-challenge-btn');
+                openBtn.disabled = true;
+                openBtn.innerText = '⏳ ส่งชาเลนจ์แล้ว (รอแอดมินอนุมัติ)';
+                
+                alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว! กรุณารอแอดมินพิจารณา');
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + data.message);
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
+            }
+        })
+        .catch(err => {
+            console.error('Error submitting challenge:', err);
+            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
         });
     }
 

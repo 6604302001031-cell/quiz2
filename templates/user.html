@@ -397,7 +397,7 @@
         <!-- ส่วนแสดงผลตรวจคำตอบ (เครื่องหมายถูก/ผิด) -->
         <div id="result-message" class="status-alert"></div>
 
-        <!-- กล่องแสดงปุ่มชาเลนจ์ (แสดงเฉพาะตอนตอบผิดเท่านั้น) -->
+        <!-- กล่องแสดงปุ่มชาเลนจ์ (แสดงเฉพาะตอนตอบผิดเมื่อหมดเวลาเท่านั้น) -->
         <div id="challenge-box" style="display: none; margin-top: 20px;">
             <button type="button" id="open-challenge-btn" class="btn btn-warning" onclick="openChallengeModal()">
                 ⚠️ ชาเลนจ์ข้อนี้ (โต้แย้งคำตอบ)
@@ -417,7 +417,7 @@
             เวลาที่เหลือในการส่ง: <div class="timer-badge">⏳ <span id="challenge-timer">01:00</span></div>
         </div>
         
-        <textarea id="challenge-reason" class="challenge-textarea" placeholder="พิมพ์อธิบายเหตุผลว่าทำไมคุณคิดว่าคำตอบของคุณถูกต้อง... (กด Ctrl+Enter เพื่อส่ง)"></textarea>
+        <textarea id="challenge-reason" class="challenge-textarea" placeholder="พิมพ์อธิบายเหตุผลว่าทำไมคุณคิดว่าคำตอบของคุณถูกต้อง..."></textarea>
         
         <div class="modal-actions">
             <button type="button" id="submit-challenge-btn" class="btn btn-blue" onclick="submitChallenge()">ส่งคำขอชาเลนจ์</button>
@@ -548,7 +548,7 @@
             fetchMyScore();
             
             if (!gamePollingInterval) {
-                gamePollingInterval = setInterval(checkGameState, 1000);
+                gamePollingInterval = setInterval(checkGameState, 1200);
             }
         }
     }
@@ -608,40 +608,41 @@
         .catch(err => console.error('Error fetching score:', err));
     }
 
-    // ฟังก์ชันแสดงผลการตรวจคำตอบ (เครื่องหมายถูก ✅ / ผิด ❌ + คุมปุ่มชาเลนจ์)
-    function displayAnswerResult(isCorrect, isWrong) {
+    // 📌 ฟังก์ชันแสดงผลการตรวจคำตอบ (เช็กสถานะการหมดเวลาจากฝั่งแอดมินเป็นหลัก)
+    function displayAnswerResult(isCorrect, isWrong, isTimeUp) {
         const resultMsg = document.getElementById('result-message');
         const challengeBox = document.getElementById('challenge-box');
 
-        // กรณีที่ 1: ตอบถูกต้อง
+        // 1. กรณีที่แอดมินยังไม่กดหมดเวลา -> แสดงสถานะรอสรุปผล (ซ่อน ✅/❌ และซ่อนชาเลนจ์)
+        if (!isTimeUp) {
+            resultMsg.innerHTML = `
+                <div style="color: #2196f3; font-size: 18px; font-weight: bold; margin-top: 10px;">
+                    ⏳ ส่งคำตอบเรียบร้อยแล้ว (รอแอดมินสรุปผลเมื่อหมดเวลา)
+                </div>
+            `;
+            challengeBox.style.display = 'none';
+            return;
+        }
+
+        // 2. กรณีที่แอดมินกด "หมดเวลา" แล้ว (isTimeUp = true)
         if (isCorrect === true) {
+            // ตอบถูก -> ขึ้น ✅ และซ่อนปุ่มชาเลนจ์
             resultMsg.innerHTML = `
                 <div class="result-icon">✅</div>
                 <div style="color: #4caf50; font-size: 22px; font-weight: bold;">ตอบถูกต้อง!</div>
             `;
-            challengeBox.style.display = 'none'; // ซ่อนปุ่มชาเลนจ์เมื่อตอบถูก
-        } 
-        // กรณีที่ 2: ตอบผิด
-        else if (isCorrect === false || isWrong === true) {
+            challengeBox.style.display = 'none';
+        } else {
+            // ตอบผิด / ไม่ได้ตอบ / หมดเวลา -> ขึ้น ❌ และโชว์ปุ่มชาเลนจ์
             resultMsg.innerHTML = `
                 <div class="result-icon">❌</div>
                 <div style="color: #f44336; font-size: 22px; font-weight: bold;">ตอบไม่ถูกต้อง</div>
             `;
-            // แสดงปุ่มชาเลนจ์ หากผู้เล่นยังไม่ได้กดชาเลนจ์ในข้อนี้
             if (!hasChallengedCurrentQuestion) {
                 challengeBox.style.display = 'block';
             } else {
                 challengeBox.style.display = 'none';
             }
-        } 
-        // กรณีที่ 3: ส่งเรียบร้อยแล้ว แต่กำลังรอผลการตรวจ
-        else {
-            resultMsg.innerHTML = `
-                <div style="color: #2196f3; font-size: 18px; font-weight: bold; margin-top: 10px;">
-                    📩 ส่งคำตอบเรียบร้อยแล้ว (รอผลการตรวจ)
-                </div>
-            `;
-            challengeBox.style.display = 'none';
         }
     }
 
@@ -714,20 +715,27 @@
                 document.getElementById('question-number').innerText = `ส่งคำตอบข้อที่ ${data.current_number}`;
                 document.getElementById('answer-form').style.display = 'block';
 
-                // อัปเดตการแสดงผลเมื่อส่งคำตอบแล้ว หรือ มีผลตรวจจากระบบ
+                if (data.has_challenged) {
+                    hasChallengedCurrentQuestion = true;
+                }
+
+                // 4. การแสดงผลตามสถานะการตอบและหมดเวลา
                 if (hasSubmittedThisQuestion || data.has_submitted) {
                     answerInput.disabled = true;
                     submitBtn.disabled = true;
                     submitBtn.innerText = 'ส่งคำตอบเรียบร้อยแล้ว';
+                    if (data.my_answer) {
+                        answerInput.value = data.my_answer;
+                    }
                     
-                    // เรียกฟังก์ชันแสดงเครื่องหมาย ถูก/ผิด และ ปุ่มชาเลนจ์
-                    displayAnswerResult(data.is_correct, data.is_wrong);
+                    // ส่งสถานะ data.is_time_up เข้าไปด้วย
+                    displayAnswerResult(data.is_correct, data.is_wrong, data.is_time_up);
                 } else if (data.is_time_up) {
-                    // กรณีหมดเวลาโดยไม่ได้กดส่ง
+                    // กรณีหมดเวลาโดยไม่ได้กดส่งคำตอบ
                     answerInput.disabled = true;
                     submitBtn.disabled = true;
                     submitBtn.innerText = '🔒 หมดเวลาส่งคำตอบ';
-                    displayAnswerResult(false, true); // กำหนดให้แสดงผลว่าตอบผิด/ไม่ทัน
+                    displayAnswerResult(false, true, true); 
                 }
             }
         })
@@ -765,8 +773,8 @@
                 submitBtn.innerText = 'ส่งคำตอบเรียบร้อยแล้ว';
                 answerInput.disabled = true;
                 
-                // แสดงผล ถูก (✅) หรือ ผิด (❌) + ปุ่มชาเลนจ์ทันทีตามค่าที่ส่งกลับมาจาก backend
-                displayAnswerResult(data.is_correct, data.is_wrong);
+                // แสดงสถานะ "รอสรุปผลเมื่อหมดเวลา"
+                displayAnswerResult(false, false, false);
 
                 fetchMyScore(); 
             } else {
@@ -837,137 +845,34 @@
         }
 
         submitBtn.disabled = true;
-        submitBtn.innerText = 'กำลังส่งคำขอ...';
+        submitBtn.innerText = 'กำลังส่ง...';
 
         fetch('/api/challenge', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email: playerId,
-                name: playerName,
-                school: teamName,
                 question_number: currentQuestionNumber,
                 reason: reason
             })
         })
         .then(res => res.json())
         .then(data => {
-            if (data.status === 'success') {
-                alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว แอดมินจะทำการตรวจสอบครับ');
-                hasChallengedCurrentQuestion = true;
-                
-                document.getElementById('challenge-box').style.display = 'none';
-                closeChallengeModal();
-            } else {
-                alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถส่งคำขอได้'));
-                submitBtn.disabled = false;
-                submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
-            }
+            alert(data.message || 'ส่งคำขอชาเลนจ์เรียบร้อยแล้ว');
+            hasChallengedCurrentQuestion = true;
+            closeChallengeModal();
+            checkGameState();
         })
         .catch(err => {
             console.error('Error submitting challenge:', err);
-            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
+            alert('เกิดข้อผิดพลาดในการส่งคำขอชาเลนจ์');
             submitBtn.disabled = false;
             submitBtn.innerText = 'ส่งคำขอชาเลนจ์';
         });
     }
 
-    // ทางลัดกด Ctrl + Enter ใน Textarea เพื่อส่งชาเลนจ์
-    document.addEventListener('keydown', function(e) {
-        const reasonInput = document.getElementById('challenge-reason');
-        if (document.activeElement === reasonInput && (e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            submitChallenge();
-        }
-    });
-
-    // เริ่มต้นระบบเมื่อโหลดหน้าเว็บเรียบร้อยแล้ว
-    document.addEventListener('DOMContentLoaded', () => {
-        initPlayer();
-    });
-    // ฟังก์ชันดึงสถานะเกมมาอัปเดตหน้าจอ (เรียกทำงานทุก 1-2 วินาที)
-function checkGameState() {
-    fetch('/api/state')
-        .then(res => res.json())
-        .then(data => {
-            // หากเกมยังไม่เริ่ม หรือจบเกมแล้ว
-            if (!data.is_started || data.is_end) {
-                return;
-            }
-
-            // แสดงโจทย์และคำตอบที่เคยส่งไว้
-            document.getElementById('questionText').innerText = data.question;
-
-            // -------------------------------------------------------------
-            // กรณีที่ 1: ผู้เล่นส่งคำตอบไปแล้ว
-            // -------------------------------------------------------------
-            if (data.has_submitted) {
-                // ล็อกช่องกรอกและปุ่มส่ง
-                document.getElementById('answerInput').disabled = true;
-                document.getElementById('submitBtn').disabled = true;
-
-                // ⏳ ช่วงเวลาที่ส่งแล้ว แต่แอดมินยังไม่กดหมดเวลา (is_time_up = false)
-                if (!data.is_time_up) {
-                    document.getElementById('statusBox').innerHTML = `
-                        <div class="alert alert-info">
-                            ⏳ ส่งคำตอบเรียบร้อยแล้ว (รอแอดมินสรุปผลเมื่อหมดเวลา)
-                        </div>
-                    `;
-                    document.getElementById('challengeBtn').style.display = 'none';
-                } 
-                // 🔔 แอดมินกดหมดเวลาแล้ว (is_time_up = true) -> แสดงผลตรวจทันที
-                else {
-                    if (data.is_correct) {
-                        document.getElementById('statusBox').innerHTML = `
-                            <div class="alert alert-success">
-                                ✅ <strong>ถูกต้อง!</strong> คุณได้คะแนนในข้อนี้
-                            </div>
-                        `;
-                        document.getElementById('challengeBtn').style.display = 'none';
-                    } 
-                    else if (data.is_wrong) {
-                        document.getElementById('statusBox').innerHTML = `
-                            <div class="alert alert-danger">
-                                ❌ <strong>ตอบไม่ถูกต้อง!</strong> (เฉลย: ${data.answer})
-                            </div>
-                        `;
-
-                        // แสดงปุ่มโต้แย้ง (Challenge) เฉพาะคนที่ตอบผิด และยังไม่เคยยื่นโต้แย้งข้อนี้
-                        if (!data.has_challenged) {
-                            document.getElementById('challengeBtn').style.display = 'block';
-                        } else {
-                            document.getElementById('challengeBtn').style.display = 'none';
-                            document.getElementById('statusBox').innerHTML += `
-                                <small class="text-muted">*(ส่งคำขอโต้แย้งข้อนี้แล้ว รอแอดมินพิจารณา)*</small>
-                            `;
-                        }
-                    }
-                }
-            } 
-            // -------------------------------------------------------------
-            // กรณีที่ 2: ยังไม่ได้ส่งคำตอบ
-            // -------------------------------------------------------------
-            else {
-                if (data.is_time_up) {
-                    document.getElementById('answerInput').disabled = true;
-                    document.getElementById('submitBtn').disabled = true;
-                    document.getElementById('statusBox').innerHTML = `
-                        <div class="alert alert-warning">
-                            ⏰ หมดเวลาตอบคำถามแล้ว!
-                        </div>
-                    `;
-                } else {
-                    document.getElementById('answerInput').disabled = false;
-                    document.getElementById('submitBtn').disabled = false;
-                }
-            }
-        })
-        .catch(err => console.error("Error fetching state:", err));
-}
-
-// ตั้งให้ดึงข้อมูลอัปเดตทุกๆ 1.5 วินาที
-setInterval(checkGameState, 1500);
-    updateGameState();
+    // เริ่มทำงานเมื่อเปิดหน้าเว็บ
+    window.onload = initPlayer;
 </script>
+
 </body>
 </html>

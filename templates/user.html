@@ -285,9 +285,20 @@
             display: none;
         }
         .status-alert {
-            margin-top: 20px;
+            margin-top: 15px;
             font-weight: bold;
             font-size: 16px;
+        }
+        .result-icon {
+            font-size: 50px;
+            line-height: 1;
+            margin-bottom: 5px;
+            animation: popIn 0.3s ease-out;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -384,10 +395,11 @@
             <button type="submit" id="submit-btn" class="btn btn-blue">ส่งคำตอบ (Submit)</button>
         </form>
         
+        <!-- ส่วนแสดงผลตรวจคำตอบ (เครื่องหมายถูก/ผิด) -->
         <div id="result-message" class="status-alert"></div>
 
-        <!-- กล่องแสดงปุ่มชาเลนจ์ -->
-        <div id="challenge-box" style="display: none; margin-top: 15px;">
+        <!-- กล่องแสดงปุ่มชาเลนจ์ (แสดงเฉพาะตอนตอบผิดและมีเครื่องหมายผิดเท่านั้น) -->
+        <div id="challenge-box" style="display: none; margin-top: 20px;">
             <button type="button" id="open-challenge-btn" class="btn btn-warning" onclick="openChallengeModal()">
                 ⚠️ ชาเลนจ์ข้อนี้ (โต้แย้งคำตอบ)
             </button>
@@ -432,7 +444,6 @@
 
     function insertMath(symbol) {
         const input = document.getElementById('answer-input'); 
-        
         if (!input || input.disabled) return;
 
         const start = input.selectionStart;
@@ -452,7 +463,6 @@
         
         input.focus();
         input.setSelectionRange(start + cursorOffset, start + cursorOffset);
-        
         renderMathPreview(); 
     }
 
@@ -599,6 +609,40 @@
         .catch(err => console.error('Error fetching score:', err));
     }
 
+    // ฟังก์ชันแสดงผลการตรวจคำตอบ (เครื่องหมายถูก/ผิด + การคุมปุ่มชาเลนจ์)
+    function displayAnswerResult(isCorrect, isWrong) {
+        const resultMsg = document.getElementById('result-message');
+        const challengeBox = document.getElementById('challenge-box');
+
+        // กรณีที่ 1: ตอบถูกต้อง
+        if (isCorrect === true || isWrong === false) {
+            resultMsg.innerHTML = `
+                <div class="result-icon">✅</div>
+                <div style="color: #4caf50; font-size: 20px;">ตอบถูกต้อง!</div>
+            `;
+            // ซ่อนปุ่มชาเลนจ์ทันทีหากตอบถูก
+            challengeBox.style.display = 'none';
+        } 
+        // กรณีที่ 2: ตอบผิด
+        else if (isWrong === true || isCorrect === false) {
+            resultMsg.innerHTML = `
+                <div class="result-icon">❌</div>
+                <div style="color: #f44336; font-size: 20px;">ตอบไม่ถูกต้อง</div>
+            `;
+            // แสดงปุ่มชาเลนจ์เฉพาะเมื่อตอบผิด และยังไม่ได้ส่งชาเลนจ์ในข้อนี้
+            if (!hasChallengedCurrentQuestion) {
+                challengeBox.style.display = 'block';
+            } else {
+                challengeBox.style.display = 'none';
+            }
+        } 
+        // กรณีที่ 3: ส่งเรียบร้อยแล้ว แต่รอผลการตรวจ
+        else {
+            resultMsg.innerHTML = '<span style="color: #2196f3;">✅ ส่งคำตอบเรียบร้อยแล้ว (รอผลการตรวจ)</span>';
+            challengeBox.style.display = 'none';
+        }
+    }
+
     function checkGameState() {
         if (!teamName) return; 
 
@@ -635,7 +679,7 @@
 
             // 2. เมื่อแอดมินขึ้นข้อใหม่
             if (data.current_number !== currentQuestionNumber) {
-                closeChallengeModal(); // ปิด Modal ชาเลนจ์ข้อเดิมทันที
+                closeChallengeModal(); // ปิด Modal ชาเลนจ์ข้อเดิม
                 currentQuestionNumber = data.current_number;
                 hasSubmittedThisQuestion = false; 
                 hasChallengedCurrentQuestion = false; 
@@ -647,7 +691,7 @@
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';
                 resultMsg.innerText = '';
                 
-                // รีเซ็ตปุ่มชาเลนจ์
+                // รีเซ็ตซ่อนปุ่มชาเลนจ์
                 challengeBox.style.display = 'none';
                 const openCBtn = document.getElementById('open-challenge-btn');
                 openCBtn.disabled = false;
@@ -669,22 +713,20 @@
                 document.getElementById('question-number').innerText = `ส่งคำตอบข้อที่ ${data.current_number}`;
                 document.getElementById('answer-form').style.display = 'block';
 
-                if (data.is_time_up) {
+                // อัปเดตการแสดงผลเมื่อส่งคำตอบแล้ว หรือ มีผลตรวจจากระบบ
+                if (hasSubmittedThisQuestion || data.has_submitted) {
                     answerInput.disabled = true;
                     submitBtn.disabled = true;
+                    submitBtn.innerText = 'ส่งคำตอบเรียบร้อยแล้ว';
                     
-                    if (hasSubmittedThisQuestion) {
-                        submitBtn.innerText = '🔒 หมดเวลา (ส่งคำตอบสำเร็จแล้ว)';
-                        resultMsg.innerHTML = '<span style="color: #4caf50;">✅ ส่งคำตอบเรียบร้อยในเวลากำหนด!</span>';
-                    } else {
-                        submitBtn.innerText = '🔒 หมดเวลาส่งคำตอบ';
-                        resultMsg.innerHTML = '<span style="color: #f44336;">❌ คุณไม่ได้ส่งคำตอบในเวลากำหนด</span>';
-                    }
-                }
-
-                // 4. แสดงปุ่มชาเลนจ์ เมื่อผู้เล่นตอบผิด หรือหมดเวลาแต่ส่งคำตอบแล้ว
-                if ((data.is_wrong || (data.is_time_up && hasSubmittedThisQuestion)) && !hasChallengedCurrentQuestion) {
-                    challengeBox.style.display = 'block';
+                    // แสดงผลตรวจ ถูก/ผิด พร้อมจัดการปุ่มชาเลนจ์
+                    displayAnswerResult(data.is_correct, data.is_wrong);
+                } else if (data.is_time_up) {
+                    // กรณีหมดเวลาโดยไม่ได้กดส่ง
+                    answerInput.disabled = true;
+                    submitBtn.disabled = true;
+                    submitBtn.innerText = '🔒 หมดเวลาส่งคำตอบ';
+                    displayAnswerResult(false, true); // ถือว่าตอบผิด/ไม่ทัน
                 }
             }
         })
@@ -719,13 +761,11 @@
         .then(data => {
             if (data.status === 'success') {
                 hasSubmittedThisQuestion = true;
-                resultMsg.innerHTML = '<span style="color: #4caf50;">✅ ส่งคำตอบเรียบร้อย!</span>';
-                submitBtn.innerText = 'ส่งคำตอบสำเร็จแล้ว';
+                submitBtn.innerText = 'ส่งคำตอบเรียบร้อยแล้ว';
                 answerInput.disabled = true;
                 
-                if (data.is_wrong) {
-                    document.getElementById('challenge-box').style.display = 'block';
-                }
+                // แสดงผล ถูก/ผิด และ ปุ่มชาเลนจ์ตามผลที่ตอบกลับมาจาก API
+                displayAnswerResult(data.is_correct, data.is_wrong);
 
                 fetchMyScore(); 
             } else {
@@ -814,9 +854,8 @@
                 closeChallengeModal();
                 hasChallengedCurrentQuestion = true;
                 
-                const openBtn = document.getElementById('open-challenge-btn');
-                openBtn.disabled = true;
-                openBtn.innerText = '⏳ ส่งชาเลนจ์แล้ว (รอแอดมินอนุมัติ)';
+                const challengeBox = document.getElementById('challenge-box');
+                challengeBox.style.display = 'none'; // ซ่อนปุ่มเมื่อส่งชาเลนจ์แล้ว
                 
                 alert('ส่งคำขอชาเลนจ์เรียบร้อยแล้ว! กรุณารอแอดมินพิจารณา');
             } else {

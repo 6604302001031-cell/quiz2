@@ -895,13 +895,6 @@ def sheet_update_score():
         return jsonify({"status": "error", "message": "รูปแบบคะแนนไม่ถูกต้อง"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
-    # ตัวอย่างการเก็บข้อมูลในหน่วยความจำ (หรือปรับใช้กับ Database ของคุณ)
-challenges_db = [] # เก็บรายการ challenge ทั้งหมด
-
 # API สำหรับดึงรายการ Challenge ที่รอตรวจ (สำหรับแอดมิน)
 @app.route('/api/admin/challenges', methods=['GET'])
 def get_admin_challenges():
@@ -944,6 +937,6 @@ def handle_challenge():
 
     return jsonify({'status': 'error', 'message': 'คำสั่งไม่ถูกต้อง'}), 400
 
-    except Exception as e:
-        print(f"Error handling challenge: {e}")
-        return jsonify({'status': 'error', 'message': 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์'}), 500
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+   

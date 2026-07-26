@@ -885,6 +885,88 @@
     document.addEventListener('DOMContentLoaded', () => {
         initPlayer();
     });
+    // ฟังก์ชันดึงสถานะเกมมาอัปเดตหน้าจอ (เรียกทำงานทุก 1-2 วินาที)
+function checkGameState() {
+    fetch('/api/state')
+        .then(res => res.json())
+        .then(data => {
+            // หากเกมยังไม่เริ่ม หรือจบเกมแล้ว
+            if (!data.is_started || data.is_end) {
+                return;
+            }
+
+            // แสดงโจทย์และคำตอบที่เคยส่งไว้
+            document.getElementById('questionText').innerText = data.question;
+
+            // -------------------------------------------------------------
+            // กรณีที่ 1: ผู้เล่นส่งคำตอบไปแล้ว
+            // -------------------------------------------------------------
+            if (data.has_submitted) {
+                // ล็อกช่องกรอกและปุ่มส่ง
+                document.getElementById('answerInput').disabled = true;
+                document.getElementById('submitBtn').disabled = true;
+
+                // ⏳ ช่วงเวลาที่ส่งแล้ว แต่แอดมินยังไม่กดหมดเวลา (is_time_up = false)
+                if (!data.is_time_up) {
+                    document.getElementById('statusBox').innerHTML = `
+                        <div class="alert alert-info">
+                            ⏳ ส่งคำตอบเรียบร้อยแล้ว (รอแอดมินสรุปผลเมื่อหมดเวลา)
+                        </div>
+                    `;
+                    document.getElementById('challengeBtn').style.display = 'none';
+                } 
+                // 🔔 แอดมินกดหมดเวลาแล้ว (is_time_up = true) -> แสดงผลตรวจทันที
+                else {
+                    if (data.is_correct) {
+                        document.getElementById('statusBox').innerHTML = `
+                            <div class="alert alert-success">
+                                ✅ <strong>ถูกต้อง!</strong> คุณได้คะแนนในข้อนี้
+                            </div>
+                        `;
+                        document.getElementById('challengeBtn').style.display = 'none';
+                    } 
+                    else if (data.is_wrong) {
+                        document.getElementById('statusBox').innerHTML = `
+                            <div class="alert alert-danger">
+                                ❌ <strong>ตอบไม่ถูกต้อง!</strong> (เฉลย: ${data.answer})
+                            </div>
+                        `;
+
+                        // แสดงปุ่มโต้แย้ง (Challenge) เฉพาะคนที่ตอบผิด และยังไม่เคยยื่นโต้แย้งข้อนี้
+                        if (!data.has_challenged) {
+                            document.getElementById('challengeBtn').style.display = 'block';
+                        } else {
+                            document.getElementById('challengeBtn').style.display = 'none';
+                            document.getElementById('statusBox').innerHTML += `
+                                <small class="text-muted">*(ส่งคำขอโต้แย้งข้อนี้แล้ว รอแอดมินพิจารณา)*</small>
+                            `;
+                        }
+                    }
+                }
+            } 
+            // -------------------------------------------------------------
+            // กรณีที่ 2: ยังไม่ได้ส่งคำตอบ
+            // -------------------------------------------------------------
+            else {
+                if (data.is_time_up) {
+                    document.getElementById('answerInput').disabled = true;
+                    document.getElementById('submitBtn').disabled = true;
+                    document.getElementById('statusBox').innerHTML = `
+                        <div class="alert alert-warning">
+                            ⏰ หมดเวลาตอบคำถามแล้ว!
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('answerInput').disabled = false;
+                    document.getElementById('submitBtn').disabled = false;
+                }
+            }
+        })
+        .catch(err => console.error("Error fetching state:", err));
+}
+
+// ตั้งให้ดึงข้อมูลอัปเดตทุกๆ 1.5 วินาที
+setInterval(checkGameState, 1500);
 </script>
 </body>
 </html>

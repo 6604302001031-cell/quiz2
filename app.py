@@ -943,3 +943,7 @@ def handle_challenge():
         })
 
     return jsonify({'status': 'error', 'message': 'คำสั่งไม่ถูกต้อง'}), 400
+
+    except Exception as e:
+        print(f"Error handling challenge: {e}")
+        return jsonify({'status': 'error', 'message': 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์'}), 500

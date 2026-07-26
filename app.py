@@ -325,7 +325,10 @@ def get_state():
             if player_data is not None:
                 has_submitted = True
                 my_answer = player_data.get("answer", "")
-                is_correct_val = is_correct(my_answer, correct_ans)
+                
+                # 🔒 คำนวณผลตรวจเฉพาะเมื่อหมดเวลาแล้วเท่านั้น
+                if db.get("is_time_up") or db.get("is_end"):
+                    is_correct_val = is_correct(my_answer, correct_ans)
 
             # Check challenge status
             q_num = current_idx + 1
@@ -343,6 +346,11 @@ def get_state():
         school_scores_copy = dict(db["school_scores"])
         pending_challenges_count = len([c for c in db.get("challenges", []) if c.get('status') == 'pending'])
 
+        # 🔒 กำหนดสถานะ ถูก/ผิด จะเป็น True ได้ต่อเมื่อหมดเวลาแล้วเท่านั้น
+        time_is_over = db.get("is_time_up") or db.get("is_end")
+        show_correct = has_submitted and is_correct_val if time_is_over else False
+        show_wrong = has_submitted and not is_correct_val if time_is_over else False
+
     return jsonify({
         "is_started": db["is_started"],
         "is_time_up": db["is_time_up"],
@@ -358,8 +366,8 @@ def get_state():
         "pending_challenges_count": pending_challenges_count,
         "my_answer": my_answer,
         "has_submitted": has_submitted,
-        "is_correct": is_correct_val,
-        "is_wrong": has_submitted and not is_correct_val,
+        "is_correct": show_correct,
+        "is_wrong": show_wrong,
         "has_challenged": has_challenged
     })
 
@@ -841,11 +849,8 @@ def submit_answer():
         
         current_idx = db["current_index"]
         current_question_number = current_idx + 1
-        correct_ans = questions[current_idx]["a"] if current_idx < len(questions) else ""
-        
-        # ตรวจเช็กผลลัพธ์เพื่อตอบกลับผู้ใช้ทันที
-        is_ans_correct = is_correct(player_answer, correct_ans)
     
+    # ส่งข้อมูลไปยัง Google Sheets เบื้องหลัง
     threading.Thread(
         target=send_to_gsheet, 
         args=(email, name, school, current_question_number, player_answer)
@@ -853,9 +858,7 @@ def submit_answer():
     
     return jsonify({
         'status': 'success', 
-        'message': 'ส่งคำตอบสำเร็จ',
-        'is_correct': is_ans_correct,
-        'is_wrong': not is_ans_correct
+        'message': 'ส่งคำตอบเรียบร้อยแล้ว'
     })
 
 @app.route('/api/my-score')

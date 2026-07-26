@@ -290,14 +290,13 @@
             font-size: 16px;
         }
         .result-icon {
-            font-size: 50px;
-            line-height: 1;
+            font-size: 55px;
+            line-height: 1.2;
             margin-bottom: 5px;
-            animation: popIn 0.3s ease-out;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         @keyframes popIn {
-            0% { transform: scale(0.5); opacity: 0; }
-            70% { transform: scale(1.1); }
+            0% { transform: scale(0.3); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
         @keyframes spin {
@@ -398,7 +397,7 @@
         <!-- ส่วนแสดงผลตรวจคำตอบ (เครื่องหมายถูก/ผิด) -->
         <div id="result-message" class="status-alert"></div>
 
-        <!-- กล่องแสดงปุ่มชาเลนจ์ (แสดงเฉพาะตอนตอบผิดและมีเครื่องหมายผิดเท่านั้น) -->
+        <!-- กล่องแสดงปุ่มชาเลนจ์ (แสดงเฉพาะตอนตอบผิดเท่านั้น) -->
         <div id="challenge-box" style="display: none; margin-top: 20px;">
             <button type="button" id="open-challenge-btn" class="btn btn-warning" onclick="openChallengeModal()">
                 ⚠️ ชาเลนจ์ข้อนี้ (โต้แย้งคำตอบ)
@@ -609,36 +608,39 @@
         .catch(err => console.error('Error fetching score:', err));
     }
 
-    // ฟังก์ชันแสดงผลการตรวจคำตอบ (เครื่องหมายถูก/ผิด + การคุมปุ่มชาเลนจ์)
+    // ฟังก์ชันแสดงผลการตรวจคำตอบ (เครื่องหมายถูก ✅ / ผิด ❌ + คุมปุ่มชาเลนจ์)
     function displayAnswerResult(isCorrect, isWrong) {
         const resultMsg = document.getElementById('result-message');
         const challengeBox = document.getElementById('challenge-box');
 
         // กรณีที่ 1: ตอบถูกต้อง
-        if (isCorrect === true || isWrong === false) {
+        if (isCorrect === true) {
             resultMsg.innerHTML = `
                 <div class="result-icon">✅</div>
-                <div style="color: #4caf50; font-size: 20px;">ตอบถูกต้อง!</div>
+                <div style="color: #4caf50; font-size: 22px; font-weight: bold;">ตอบถูกต้อง!</div>
             `;
-            // ซ่อนปุ่มชาเลนจ์ทันทีหากตอบถูก
-            challengeBox.style.display = 'none';
+            challengeBox.style.display = 'none'; // ซ่อนปุ่มชาเลนจ์เมื่อตอบถูก
         } 
         // กรณีที่ 2: ตอบผิด
-        else if (isWrong === true || isCorrect === false) {
+        else if (isCorrect === false || isWrong === true) {
             resultMsg.innerHTML = `
                 <div class="result-icon">❌</div>
-                <div style="color: #f44336; font-size: 20px;">ตอบไม่ถูกต้อง</div>
+                <div style="color: #f44336; font-size: 22px; font-weight: bold;">ตอบไม่ถูกต้อง</div>
             `;
-            // แสดงปุ่มชาเลนจ์เฉพาะเมื่อตอบผิด และยังไม่ได้ส่งชาเลนจ์ในข้อนี้
+            // แสดงปุ่มชาเลนจ์ หากผู้เล่นยังไม่ได้กดชาเลนจ์ในข้อนี้
             if (!hasChallengedCurrentQuestion) {
                 challengeBox.style.display = 'block';
             } else {
                 challengeBox.style.display = 'none';
             }
         } 
-        // กรณีที่ 3: ส่งเรียบร้อยแล้ว แต่รอผลการตรวจ
+        // กรณีที่ 3: ส่งเรียบร้อยแล้ว แต่กำลังรอผลการตรวจ
         else {
-            resultMsg.innerHTML = '<span style="color: #2196f3;">✅ ส่งคำตอบเรียบร้อยแล้ว (รอผลการตรวจ)</span>';
+            resultMsg.innerHTML = `
+                <div style="color: #2196f3; font-size: 18px; font-weight: bold; margin-top: 10px;">
+                    📩 ส่งคำตอบเรียบร้อยแล้ว (รอผลการตรวจ)
+                </div>
+            `;
             challengeBox.style.display = 'none';
         }
     }
@@ -656,7 +658,7 @@
             const resultMsg = document.getElementById('result-message');
             const challengeBox = document.getElementById('challenge-box');
             
-            // 1. ถ้าเกมยังไม่เริ่ม หรือมีการรีเซ็ตเกม
+            // 1. ถ้าเกมยังไม่เริ่ม หรือรีเซ็ตเกม
             if (!data.is_started) {
                 closeChallengeModal(); 
                 waitingScreen.style.display = 'block';
@@ -679,7 +681,7 @@
 
             // 2. เมื่อแอดมินขึ้นข้อใหม่
             if (data.current_number !== currentQuestionNumber) {
-                closeChallengeModal(); // ปิด Modal ชาเลนจ์ข้อเดิม
+                closeChallengeModal(); 
                 currentQuestionNumber = data.current_number;
                 hasSubmittedThisQuestion = false; 
                 hasChallengedCurrentQuestion = false; 
@@ -691,7 +693,6 @@
                 submitBtn.innerText = 'ส่งคำตอบ (Submit)';
                 resultMsg.innerText = '';
                 
-                // รีเซ็ตซ่อนปุ่มชาเลนจ์
                 challengeBox.style.display = 'none';
                 const openCBtn = document.getElementById('open-challenge-btn');
                 openCBtn.disabled = false;
@@ -719,14 +720,14 @@
                     submitBtn.disabled = true;
                     submitBtn.innerText = 'ส่งคำตอบเรียบร้อยแล้ว';
                     
-                    // แสดงผลตรวจ ถูก/ผิด พร้อมจัดการปุ่มชาเลนจ์
+                    // เรียกฟังก์ชันแสดงเครื่องหมาย ถูก/ผิด และ ปุ่มชาเลนจ์
                     displayAnswerResult(data.is_correct, data.is_wrong);
                 } else if (data.is_time_up) {
                     // กรณีหมดเวลาโดยไม่ได้กดส่ง
                     answerInput.disabled = true;
                     submitBtn.disabled = true;
                     submitBtn.innerText = '🔒 หมดเวลาส่งคำตอบ';
-                    displayAnswerResult(false, true); // ถือว่าตอบผิด/ไม่ทัน
+                    displayAnswerResult(false, true); // กำหนดให้แสดงผลว่าตอบผิด/ไม่ทัน
                 }
             }
         })
@@ -764,7 +765,7 @@
                 submitBtn.innerText = 'ส่งคำตอบเรียบร้อยแล้ว';
                 answerInput.disabled = true;
                 
-                // แสดงผล ถูก/ผิด และ ปุ่มชาเลนจ์ตามผลที่ตอบกลับมาจาก API
+                // แสดงผล ถูก (✅) หรือ ผิด (❌) + ปุ่มชาเลนจ์ทันทีตามค่าที่ส่งกลับมาจาก backend
                 displayAnswerResult(data.is_correct, data.is_wrong);
 
                 fetchMyScore(); 
@@ -871,7 +872,7 @@
         });
     }
 
-    // รองรับการกด Ctrl + Enter ใน Textarea เพื่อส่งชาเลนจ์ทันที
+    // ทางลัดกด Ctrl + Enter ใน Textarea เพื่อส่งชาเลนจ์
     document.addEventListener('keydown', function(e) {
         const reasonInput = document.getElementById('challenge-reason');
         if (document.activeElement === reasonInput && (e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -880,7 +881,7 @@
         }
     });
 
-    // เริ่มต้นทำงานเมื่อโหลดหน้าเว็บเสร็จสมบูรณ์
+    // เริ่มต้นระบบเมื่อโหลดหน้าเว็บเรียบร้อยแล้ว
     document.addEventListener('DOMContentLoaded', () => {
         initPlayer();
     });

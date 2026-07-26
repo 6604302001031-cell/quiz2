@@ -309,9 +309,9 @@ def get_state():
         incorrect_count = 0
         img_url = ""
 
-        # ข้อมูลเฉพาะของผู้เล่นที่ส่ง Request มา
         my_answer = ""
-        my_is_correct = False
+        has_submitted = False
+        is_correct_val = False
         has_challenged = False
 
         if db["is_started"] and len(questions) > 0:
@@ -320,13 +320,14 @@ def get_state():
             correct_ans = questions[current_idx]["a"]
             img_url = questions[current_idx].get("image_url", "")
             
-            # ดึงคำตอบของผู้เล่นคนนี้
-            player_data = db.get("current_answers", {}).get(email, {})
-            if player_data:
+            # Check player answer
+            player_data = db.get("current_answers", {}).get(email)
+            if player_data is not None:
+                has_submitted = True
                 my_answer = player_data.get("answer", "")
-                my_is_correct = is_correct(my_answer, correct_ans)
+                is_correct_val = is_correct(my_answer, correct_ans)
 
-            # ตรวจสอบว่าเคยยื่นโต้แย้งข้อนี้หรือยัง
+            # Check challenge status
             q_num = current_idx + 1
             has_challenged = any(
                 c for c in db.get("challenges", [])
@@ -356,7 +357,9 @@ def get_state():
         "active_users_count": get_active_users_count(),
         "pending_challenges_count": pending_challenges_count,
         "my_answer": my_answer,
-        "my_is_correct": my_is_correct,
+        "has_submitted": has_submitted,
+        "is_correct": is_correct_val,
+        "is_wrong": has_submitted and not is_correct_val,
         "has_challenged": has_challenged
     })
 
@@ -836,15 +839,24 @@ def submit_answer():
         active_users_memory[email] = time.time()
         save_db(db)
         
-        current_question_number = db["current_index"] + 1
+        current_idx = db["current_index"]
+        current_question_number = current_idx + 1
+        correct_ans = questions[current_idx]["a"] if current_idx < len(questions) else ""
+        
+        # ตรวจเช็กผลลัพธ์เพื่อตอบกลับผู้ใช้ทันที
+        is_ans_correct = is_correct(player_answer, correct_ans)
     
     threading.Thread(
         target=send_to_gsheet, 
         args=(email, name, school, current_question_number, player_answer)
     ).start()
     
-    return jsonify({'status': 'success', 'message': 'ส่งคำตอบสำเร็จ'})
-
+    return jsonify({
+        'status': 'success', 
+        'message': 'ส่งคำตอบสำเร็จ',
+        'is_correct': is_ans_correct,
+        'is_wrong': not is_ans_correct
+    })
 
 @app.route('/api/my-score')
 def get_my_score():

@@ -13,6 +13,7 @@ import requests
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from flask import Flask, request, jsonify
 
 # 📌 ไลบรารีสำหรับอ่านไฟล์ Word
 try:
@@ -898,3 +899,47 @@ def sheet_update_score():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+    # ตัวอย่างการเก็บข้อมูลในหน่วยความจำ (หรือปรับใช้กับ Database ของคุณ)
+challenges_db = [] # เก็บรายการ challenge ทั้งหมด
+
+# API สำหรับดึงรายการ Challenge ที่รอตรวจ (สำหรับแอดมิน)
+@app.route('/api/admin/challenges', methods=['GET'])
+def get_admin_challenges():
+    # กรองเฉพาะรายการที่สถานะยังเป็น 'pending' (รอการอนุมัติ)
+    pending_challenges = [c for c in challenges_db if c.get('status') == 'pending']
+    return jsonify({'challenges': pending_challenges})
+
+# API สำหรับแอดมินกด "อนุมัติ" หรือ "ปฏิเสธ"
+@app.route('/api/admin/handle-challenge', methods=['POST'])
+def handle_challenge():
+    data = request.json
+    challenge_id = data.get('challenge_id')
+    action = data.get('action') # 'approve' หรือ 'reject'
+
+    # ค้นหาคำขอชาเลนจ์จาก ID
+    target_challenge = next((c for c in challenges_db if c['id'] == challenge_id), None)
+    
+    if not target_challenge:
+        return jsonify({'status': 'error', 'message': 'ไม่พบรายการชาเลนจ์นี้'}), 404
+
+    if action == 'approve':
+        target_challenge['status'] = 'approved'
+        
+        # 1. ปรับสถานะคำตอบของผู้เล่นให้เป็น "ตอบถูก" (is_correct = True)
+        # 2. เพิ่มคะแนนให้ผู้เล่น +1 คะแนน
+        # (เขียน Logic อัปเดตคะแนนของผู้เล่นที่ target_challenge['email'] ในระบบของคุณที่นี่)
+        update_player_score(target_challenge['email'], target_challenge['question_number'], is_correct=True)
+
+        return jsonify({
+            'status': 'success', 
+            'message': f"อนุมัติคำขอของ {target_challenge['player_name']} เรียบร้อยแล้ว ระบบได้ปรับเป็นตอบถูกและเพิ่มคะแนนให้แล้ว"
+        })
+
+    elif action == 'reject':
+        target_challenge['status'] = 'rejected'
+        return jsonify({
+            'status': 'success', 
+            'message': f"ปฏิเสธคำขอเรียบร้อยแล้ว"
+        })
+
+    return jsonify({'status': 'error', 'message': 'คำสั่งไม่ถูกต้อง'}), 400

@@ -896,6 +896,35 @@ def sheet_update_score():
     except Exception as e:
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
+
+# API 1: ดึงรายการคำขอโต้แย้งที่ค้างอยู่
+@app.route('/api/admin/challenges/pending', methods=['GET'])
+def get_pending_challenges():
+    # เขียนคำสั่ง SQL ดึงข้อสอบ, ชื่อผู้เล่น, คะแนน มาแสดง
+    return jsonify(challenges_list)
+
+
+# API 2: อนุมัติคำขอ (เปลี่ยนสถานะ + เพิ่มคะแนนให้ User)
+@app.route('/api/admin/challenge/approve', methods=['POST'])
+def approve_challenge():
+    data = request.json
+    challenge_id = data.get('challenge_id')
+    
+    # 1. อัปเดตสถานะคำขอเป็น 'APPROVED'
+    # 2. ค้นหาคะแนนของข้อนั้น แล้ว UPDATE เพิ่มคะแนนให้ User
+    
+    return jsonify({"success": True, "message": "อนุมัติเรียบร้อย เพิ่มคะแนนแล้ว"})
+
+
+# API 3: ปฏิเสธคำขอ (เปลี่ยนสถานะอย่างเดียว ไม่เพิ่มคะแนน)
+@app.route('/api/admin/challenge/reject', methods=['POST'])
+def reject_challenge():
+    data = request.json
+    challenge_id = data.get('challenge_id')
+    
+    # 1. อัปเดตสถานะคำขอเป็น 'REJECTED'
+    
+    return jsonify({"success": True, "message": "ปฏิเสธคำขอแล้ว"})
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
    

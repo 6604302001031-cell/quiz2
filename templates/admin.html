@@ -6,7 +6,7 @@
     <title>ระบบควบคุมเกม (Admin)</title>
     <style>
         body { font-family: 'Sarabun', Arial, sans-serif; background-color: #f5f7fb; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .admin-container { background-color: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); width: 100%; max-width: 600px; text-align: center; }
+        .admin-container { background-color: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); width: 100%; max-width: 650px; text-align: center; }
         .admin-header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #dee2e6; }
         .admin-info { font-size: 14px; color: #495057; font-weight: bold; }
         .admin-info span { color: #2196f3; }
@@ -63,27 +63,24 @@
         
         /* 📌 Modal */
         .modal-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; max-height: 90vh; overflow-y: auto; color: #333; }
+        .modal-content { background-color: #ffffff; padding: 30px; border-radius: 12px; width: 90%; max-width: 600px; position: relative; max-height: 90vh; overflow-y: auto; color: #333; }
         .close-modal-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; border: none; background: none; }
         
-        .score-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 16px; }
-        .score-table th, .score-table td { padding: 12px; border-bottom: 1px solid #dee2e6; text-align: left; }
-        .score-table th { background-color: #f1f3f5; }
+        /* 📌 ตารางคะแนนและชาเลนจ์ */
+        .table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; text-align: left; }
+        .table th, .table td { padding: 10px; border-bottom: 1px solid #dee2e6; vertical-align: middle; }
+        .table th { background-color: #f8f9fa; font-weight: bold; color: #495057; }
+        .text-muted { color: #6c757d; font-size: 12px; }
+        .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; margin-right: 4px; }
+        .btn-success { background-color: #2ecc71; color: white; }
+        .btn-success:hover { background-color: #27ae60; }
+        .btn-danger { background-color: #e74c3c; color: white; }
+        .btn-danger:hover { background-color: #c0392b; }
 
         .edit-icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px; padding: 0; transition: transform 0.2s; display: inline-block; }
         .edit-icon-btn:hover { transform: scale(1.2); }
 
-        /* 🌟 [เพิ่มใหม่] CSS สำหรับกล่องแสดงคำขอชาเลนจ์ */
         .challenge-badge { background-color: #dc3545; color: white; border-radius: 50%; padding: 2px 8px; font-size: 12px; margin-left: 6px; font-weight: bold; display: inline-block; }
-        .challenge-card { background-color: #fff9db; border: 1px solid #ffe066; padding: 15px; border-radius: 8px; margin-bottom: 12px; text-align: left; }
-        .challenge-card-header { display: flex; justify-content: space-between; font-weight: bold; color: #d9480f; margin-bottom: 6px; }
-        .challenge-reason-box { background: white; padding: 8px; border-radius: 6px; border: 1px solid #e9ecef; font-size: 14px; margin: 8px 0; color: #333; white-space: pre-wrap; }
-        .challenge-actions { display: flex; gap: 8px; margin-top: 10px; }
-        .btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-approve { background-color: #2ecc71; color: white; }
-        .btn-approve:hover { background-color: #27ae60; }
-        .btn-reject { background-color: #e74c3c; color: white; }
-        .btn-reject:hover { background-color: #c0392b; }
 
         /* 📌 Fullscreen Styles */
         .show-on-fullscreen { display: none; } 
@@ -126,7 +123,6 @@
     <h2>👑 ระบบควบคุมเกม (แอดมิน)</h2>
 
     <div class="status-box" id="fullscreen-target">
-        
         <button onclick="openScoreModal()" class="btn btn-purple show-on-fullscreen" style="position: absolute; top: 20px; left: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">📊 ดูตารางคะแนน</button>
         <button onclick="toggleFullscreen()" class="btn btn-red-outline show-on-fullscreen" style="position: absolute; top: 20px; right: 20px; width: auto; padding: 10px 20px; font-size: 16px; margin: 0; z-index: 99999;">❌ ออกจากเต็มจอ (Cancel)</button>
 
@@ -159,23 +155,9 @@
         </div>
         
         <button onclick="toggleFullscreen()" class="btn btn-orange hide-on-fullscreen" style="margin-top: 15px; padding: 8px; font-size: 14px; width: auto; display: block; margin-left: auto; margin-right: auto;">🖥️ ขยายหน้าจอโจทย์ (Fullscreen)</button>
-
-        <div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
-            <div class="modal-content">
-                <button class="close-modal-btn" onclick="closeScoreModal()">&times;</button>
-                <h3 style="margin-top: 0;">🏆 ตารางคะแนนรวมทีม</h3>
-                <div style="max-height: 300px; overflow-y: auto;">
-                    <table class="score-table">
-                        <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
-                        <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
-                    </table>
-                </div>
-                <button onclick="closeScoreModal()" class="btn btn-blue" style="margin-top: 20px; margin-bottom: 0;">ปิด</button>
-            </div>
-        </div>
-
     </div>
 
+    <!-- ปุ่มควบคุมเกมหลัก -->
     <button onclick="controlGame('/api/start')" class="btn btn-blue" id="btn-start">▶️ กดเพื่อเริ่ม (Start)</button>
     
     <div class="timer-btn-group" id="timer-control-group" style="display: none;">
@@ -186,7 +168,7 @@
     <button onclick="controlGame('/api/timeout')" class="btn btn-orange" id="btn-timeout" style="display: none;">⏱️ บังคับหมดเวลาข้อนี้ (Timeout)</button>
     <button onclick="controlGame('/api/next')" class="btn btn-blue" id="btn-next" style="display: none;">⏩ ไปข้อถัดไป (Next Question)</button>
     
-    <!-- 🌟 [เพิ่มใหม่] ปุ่มเปิด Modal รายการคำขอชาเลนจ์ -->
+    <!-- ปุ่มเปิด Modal ชาเลนจ์ -->
     <button onclick="openChallengeModal()" class="btn btn-orange" id="btn-challenge-list">
         📩 ดูคำขอชาเลนจ์ <span id="challenge-badge" class="challenge-badge" style="display: none;">0</span>
     </button>
@@ -197,7 +179,22 @@
     <button onclick="confirmReset()" class="btn btn-red-outline" id="btn-reset">🔄 ล้างข้อมูลและรีเซ็ตระบบเกม (Reset All)</button>
 </div>
 
-<!-- Modal สำหรับดึง/แก้ไขโจทย์ -->
+<!-- Modal ตารางคะแนน -->
+<div id="score-modal" class="modal-overlay" onclick="closeScoreModalOutside(event)">
+    <div class="modal-content">
+        <button class="close-modal-btn" onclick="closeScoreModal()">&times;</button>
+        <h3 style="margin-top: 0;">🏆 ตารางคะแนนรวมทีม</h3>
+        <div style="max-height: 300px; overflow-y: auto;">
+            <table class="table">
+                <thead><tr><th>อันดับ</th><th>ชื่อทีม / โรงเรียน</th><th>คะแนน</th></tr></thead>
+                <tbody id="score-board-body"><tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr></tbody>
+            </table>
+        </div>
+        <button onclick="closeScoreModal()" class="btn btn-blue" style="margin-top: 20px; margin-bottom: 0;">ปิด</button>
+    </div>
+</div>
+
+<!-- Modal สำหรับนำเข้า/แก้ไขโจทย์ -->
 <div id="upload-modal" class="modal-overlay" onclick="closeEditModalOutside(event)">
     <div class="modal-content" style="text-align: left;">
         <button class="close-modal-btn" onclick="closeEditModal()">&times;</button>
@@ -224,79 +221,17 @@
     </div>
 </div>
 
-// 1. ฟังก์ชันดึงรายการโต้แย้งมาแสดงใน Modal
-async function loadChallenges() {
-  const container = document.getElementById('challenge-list-container');
-  
-  try {
-    const res = await fetch('/api/admin/challenges');
-    const data = await res.json();
-
-    // หากไม่มีรายการค้างอยู่
-    if (!data.success || data.challenges.length === 0) {
-      container.innerHTML = '<p style="text-align: center; color: #888; margin: 20px 0;">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
-      return;
-    }
-
-    // วาดรายการข้อสอบ + ปุ่มกด อนุมัติ / ปฏิเสธ
-    let html = '';
-    data.challenges.forEach(item => {
-      html += `
-        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fff; text-align: left;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <strong style="color: #333; font-size: 15px;">ข้อที่ ${item.question_no}: ${item.question_title}</strong>
-            <span style="background: #e3f2fd; color: #0d6efd; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">+${item.points} คะแนน</span>
-          </div>
-          <p style="margin: 4px 0; font-size: 13px; color: #555;"><b>ผู้ส่งคำขอ:</b> ${item.username}</p>
-          <p style="margin: 4px 0 12px 0; font-size: 13px; color: #d32f2f;"><b>คำตอบเดิมของผู้เล่น:</b> ${item.user_answer}</p>
-          
-          <div style="display: flex; gap: 8px;">
-            <button onclick="handleChallenge(${item.id}, 'approve')" style="flex: 1; background: #28a745; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-              อนุมัติ (+คะแนน)
-            </button>
-            <button onclick="handleChallenge(${item.id}, 'reject')" style="flex: 1; background: #dc3545; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-              ปฏิเสธ
-            </button>
-          </div>
+<!-- Modal แสดงรายการชาเลนจ์ -->
+<div id="challenge-admin-modal" class="modal-overlay" onclick="closeChallengeModalOutside(event)">
+    <div class="modal-content" style="max-width: 680px;">
+        <button class="close-modal-btn" onclick="closeChallengeModal()">&times;</button>
+        <h3 style="margin-top: 0; color: #333;">📢 รายการโต้แย้งคำตอบ (Challenge)</h3>
+        <p style="font-size: 13px; color: #6c757d; margin-bottom: 15px;">หากแอดมินกด "อนุมัติ" ระบบจะปรับสถานะให้เป็นตอบถูก และเพิ่มคะแนนให้ผู้เล่นโดยอัตโนมัติ</p>
+        
+        <div id="challenge-container" style="max-height: 380px; overflow-y: auto;">
+            <p style="text-align: center; color: #888;">กำลังโหลดรายการคำขอ...</p>
         </div>
-      `;
-    });
-
-    container.innerHTML = html;
-
-  } catch (err) {
-    container.innerHTML = '<p style="text-align: center; color: red; margin: 20px 0;">เกิดข้อผิดพลาดในการดึงข้อมูล</p>';
-  }
-}
-
-// 2. ฟังก์ชันจัดการเมื่อกดปุ่ม "อนุมัติ" หรือ "ปฏิเสธ"
-async function handleChallenge(challengeId, action) {
-  const actionText = action === 'approve' ? 'อนุมัติ (ระบบจะเพิ่มคะแนน)' : 'ปฏิเสธ (ไม่มีการเพิ่มคะแนน)';
-  if (!confirm(`คุณต้องการ "${actionText}" รายการนี้ใช่หรือไม่?`)) return;
-
-  try {
-    const res = await fetch(`/api/admin/challenge/${action}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_id: challengeId })
-    });
-    const result = await res.json();
-
-    if (result.success) {
-      alert(result.message);
-      loadChallenges(); // รีโหลดรายการใหม่ทันที เพื่ออัปเดตหน้าจอ
-    } else {
-      alert('เกิดข้อผิดพลาด: ' + result.message);
-    }
-  } catch (err) {
-    alert('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
-  }
-}
-
-// 3. เรียกฟังก์ชันดึงข้อมูลเมื่อแอดมินกดเปิด Modal ชาเลนจ์
-function openChallengeModal() {
-  document.getElementById('challenge-admin-modal').style.display = 'block';
-
+        
         <button onclick="closeChallengeModal()" class="btn btn-blue" style="margin-top: 15px; margin-bottom: 0;">ปิดหน้าต่าง</button>
     </div>
 </div>
@@ -310,261 +245,7 @@ function openChallengeModal() {
     let isActionInProgress = false;
     let activeScores = {}; 
 
-    /* -- Modal Controls -- */
-    function openEditModal() { document.getElementById('upload-modal').style.display = 'flex'; }
-    function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
-    function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
-
-    /* 🌟 [เพิ่มใหม่] ระบบจัดการ Challenge สำหรับ Admin */
-    function openChallengeModal() {
-        fetchChallenges();
-        document.getElementById('challenge-admin-modal').style.display = 'flex';
-    }
-    function closeChallengeModal() { document.getElementById('challenge-admin-modal').style.display = 'none'; }
-    function closeChallengeModalOutside(e) { if (e.target.id === 'challenge-admin-modal') closeChallengeModal(); }
-
-    function fetchChallenges() {
-        fetch('/api/challenges')
-        .then(res => res.json())
-        .then(data => {
-            const container = document.getElementById('challenge-list-container');
-            const badge = document.getElementById('challenge-badge');
-            
-            if (data.challenges && data.challenges.length > 0) {
-                badge.innerText = data.challenges.length;
-                badge.style.display = 'inline-block';
-
-                container.innerHTML = data.challenges.map(item => `
-                    <div class="challenge-card">
-                        <div class="challenge-card-header">
-                            <span>📌 โจทย์ข้อที่ ${item.question_number}</span>
-                            <span>👤 ${item.school || item.name}</span>
-                        </div>
-                        <div><small style="color: #6c757d;">อีเมล: ${item.email}</small></div>
-                        <div class="challenge-reason-box"><strong>เหตุผลโต้แย้ง:</strong> ${item.reason}</div>
-                        <div class="challenge-actions">
-                            <button class="btn-sm btn-approve" onclick="resolveChallenge('${item.email}', ${item.question_number}, 'approve')">✅ อนุมัติ (ให้คะแนน)</button>
-                            <button class="btn-sm btn-reject" onclick="resolveChallenge('${item.email}', ${item.question_number}, 'reject')">❌ ปฏิเสธ</button>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                badge.style.display = 'none';
-                container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ไม่มีคำขอชาเลนจ์ที่รอดำเนินการ</p>';
-            }
-        })
-        .catch(err => console.error('Error fetching challenges:', err));
-    }
-
-    function resolveChallenge(email, questionNumber, action) {
-        if (!confirm(`คุณต้องการ "${action === 'approve' ? 'อนุมัติเพิ่มคะแนน' : 'ปฏิเสธ'}" คำขอชาเลนจ์นี้ใช่หรือไม่?`)) return;
-
-        fetch('/api/resolve-challenge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, question_number: questionNumber, action: action })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'success') {
-                fetchChallenges();
-                checkGameState(); // อัปเดตตารางคะแนนและสถิติการตอบ
-            } else {
-                alert('เกิดข้อผิดพลาด: ' + data.message);
-            }
-        })
-        .catch(err => {
-            console.error('Error resolving challenge:', err);
-            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
-        });
-    }
-
-    /* -- Upload Features -- */
-    async function importGoogleSheet() {
-        const urlInput = document.getElementById('gsheet-url').value.trim();
-        if (!urlInput) { alert("⚠️ กรุณาวางลิงก์ Google Sheets ก่อนครับ"); return; }
-        
-        const btnGsheet = document.getElementById('btn-gsheet');
-        btnGsheet.disabled = true; btnGsheet.innerText = "กำลังดึงข้อมูล...";
-
-        try {
-            const res = await fetch('/api/import-gsheet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: urlInput })
-            });
-            const data = await res.json();
-            alert(data.message);
-            if (data.status === "success") {
-                document.getElementById('gsheet-url').value = "";
-                closeEditModal();
-                checkGameState();
-            }
-        } catch (err) {
-            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
-            console.error(err);
-        } finally {
-            btnGsheet.disabled = false; btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets";
-        }
-    }
-
-    async function uploadQuestions() {
-        const fileInput = document.getElementById('question-file');
-        const file = fileInput.files[0];
-        if (!file) { alert("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด"); return; }
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const btnUpload = document.getElementById('btn-upload');
-        btnUpload.disabled = true; btnUpload.innerText = "กำลังอัปโหลด...";
-
-        try {
-            const res = await fetch('/api/upload-questions', { method: 'POST', body: formData });
-            const data = await res.json();
-            alert(data.message);
-            if (data.status === "success") {
-                fileInput.value = ""; closeEditModal(); checkGameState();
-            }
-        } catch (err) {
-            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
-            console.error(err);
-        } finally {
-            btnUpload.disabled = false; btnUpload.innerText = "📤 อัปโหลดไฟล์เอกสาร";
-        }
-    }
-
-    async function uploadImageQuestion() {
-        const fileInput = document.getElementById('image-file');
-        const questionInput = document.getElementById('image-question-text');
-        const answerInput = document.getElementById('image-answer-text');
-        const numberInput = document.getElementById('image-question-number');
-        
-        const file = fileInput.files[0];
-        const question = questionInput.value.trim();
-        const answer = answerInput.value.trim();
-        const questionNumber = numberInput.value.trim(); 
-
-        if (!questionNumber) { alert("⚠️ กรุณาระบุข้อที่ต้องการแทรกรูปด้วยครับ"); return; }
-        if (!file) { alert("⚠️ กรุณาเลือกไฟล์รูปภาพ .jpg หรือ .png ก่อนครับ"); return; }
-        if (!answer) { alert("⚠️ กรุณาระบุเฉลยสำหรับข้อนี้ด้วยครับ"); return; }
-
-        const formData = new FormData();
-        formData.append("question_number", questionNumber); 
-        formData.append("file", file);
-        formData.append("question", question);
-        formData.append("answer", answer); 
-
-        const btnUploadImg = document.getElementById('btn-upload-img');
-        btnUploadImg.disabled = true; 
-        btnUploadImg.innerText = "กำลังอัปโหลด...";
-
-        try {
-            const res = await fetch('/api/upload-image-question', { method: 'POST', body: formData });
-            const data = await res.json();
-            
-            alert(data.message);
-            
-            if (data.status === "success") {
-                fileInput.value = ""; 
-                questionInput.value = ""; 
-                answerInput.value = "";
-                numberInput.value = ""; 
-                closeEditModal(); 
-                checkGameState();
-            }
-        } catch (err) {
-            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
-            console.error(err);
-        } finally {
-            btnUploadImg.disabled = false; 
-            btnUploadImg.innerText = "🖼️ อัปโหลดโจทย์รูปภาพและเฉลย";
-        }
-    }
-
-    /* -- UI & Timers -- */
-    function toggleFullscreen() {
-        const elem = document.getElementById('fullscreen-target');
-        if (!document.fullscreenElement) {
-            elem.requestFullscreen().catch(err => alert(`ไม่สามารถเปิดโหมดเต็มจอได้: ${err.message}`));
-        } else {
-            document.exitFullscreen();
-        }
-    }
-
-    function updateTimerDisplay() {
-        const timerDisplay = document.getElementById('timer-display');
-        if (timeLeft <= 0) {
-            timerDisplay.innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
-            return;
-        }
-        if (isPaused) {
-            timerDisplay.innerText = `⏸️ หยุดเวลาชั่วคราว: ${timeLeft} วินาที`;
-            return;
-        }
-        timerDisplay.innerText = `⏱️ เวลาที่เหลือ: ${timeLeft} วินาที`;
-    }
-
-    function runCountdown() {
-        if (isPaused) return;
-        if (timeLeft > 0) {
-            timeLeft--;
-            updateTimerDisplay();
-        } else {
-            clearInterval(countdownInterval);
-            countdownInterval = null;
-        }
-    }
-
-    function startTimer(resetTime = true) {
-        if (countdownInterval) clearInterval(countdownInterval);
-        
-        if (resetTime) {
-            const customTime = parseInt(document.getElementById('custom-time-input').value);
-            timeLeft = !isNaN(customTime) && customTime > 0 ? customTime : 120;
-        }
-        
-        isPaused = false;
-        document.getElementById('btn-pause').style.display = 'block';
-        document.getElementById('btn-resume').style.display = 'none';
-        updateTimerDisplay();
-        countdownInterval = setInterval(runCountdown, 1000);
-    }
-
-    function pauseTimer() {
-        isPaused = true;
-        document.getElementById('btn-pause').style.display = 'none';
-        document.getElementById('btn-resume').style.display = 'block';
-        updateTimerDisplay();
-    }
-
-    function runResumeTimer() {
-        isPaused = false;
-        document.getElementById('btn-pause').style.display = 'block';
-        document.getElementById('btn-resume').style.display = 'none';
-        updateTimerDisplay();
-    }
-    window.resumeTimer = runResumeTimer;
-
-    /* -- Score Controls -- */
-    function openScoreModal() { 
-        updateScoreBoard(activeScores);
-        document.getElementById('score-modal').style.display = 'flex'; 
-    }
-    function closeScoreModal() { document.getElementById('score-modal').style.display = 'none'; }
-    function closeScoreModalOutside(e) { if (e.target.id === 'score-modal') closeScoreModal(); }
-
-    function updateScoreBoard(schoolScores) {
-        const tbody = document.getElementById('score-board-body');
-        if (!schoolScores || Object.keys(schoolScores).length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr>';
-            return;
-        }
-        let arr = Object.keys(schoolScores).map(k => ({ name: k, score: schoolScores[k] })).sort((a,b) => b.score - a.score);
-        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td><span style="color:#2196f3; font-weight:bold;">${item.score} คะแนน</span></td></tr>`).join('');
-    }
-
-    /* -- Game State Management -- */
+    /* -- ฟังก์ชันเปิด-ปิดการใช้งานปุ่มควบคุม -- */
     function toggleButtonsState(disabled) {
         ['btn-start', 'btn-pause', 'btn-resume', 'btn-timeout', 'btn-next', 'btn-reset', 'btn-challenge-list'].forEach(id => {
             const el = document.getElementById(id);
@@ -572,12 +253,108 @@ function openChallengeModal() {
         });
     }
 
-    function confirmReset() {
-        if(confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลคะแนนและรีเซ็ตระบบเกมทั้งหมดใช่หรือไม่? (การกระทำนี้ย้อนกลับไม่ได้)")) {
-            controlGame('/api/reset');
+    /* -- Modal Controls -- */
+    function openEditModal() { document.getElementById('upload-modal').style.display = 'flex'; }
+    function closeEditModal() { document.getElementById('upload-modal').style.display = 'none'; }
+    function closeEditModalOutside(e) { if (e.target.id === 'upload-modal') closeEditModal(); }
+
+    function openScoreModal() { 
+        updateScoreBoard(activeScores);
+        document.getElementById('score-modal').style.display = 'flex'; 
+    }
+    function closeScoreModal() { document.getElementById('score-modal').style.display = 'none'; }
+    function closeScoreModalOutside(e) { if (e.target.id === 'score-modal') closeScoreModal(); }
+
+    function openChallengeModal() {
+        loadChallengeList();
+        document.getElementById('challenge-admin-modal').style.display = 'flex';
+    }
+    function closeChallengeModal() { document.getElementById('challenge-admin-modal').style.display = 'none'; }
+    function closeChallengeModalOutside(e) { if (e.target.id === 'challenge-admin-modal') closeChallengeModal(); }
+
+    /* -- ฟังก์ชันดึงรายการโต้แย้งมาแสดง -- */
+    async function loadChallengeList() {
+        const container = document.getElementById('challenge-container');
+        try {
+            const response = await fetch('/api/admin/challenges/pending');
+            const requests = await response.json();
+
+            if (!requests || requests.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
+                return;
+            }
+
+            let html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">ข้อที่</th>
+                            <th style="width: 40%;">โจทย์ / คำตอบของผู้เล่น</th>
+                            <th style="width: 20%;">ผู้ส่งคำขอ</th>
+                            <th style="width: 25%;">การจัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            requests.forEach(item => {
+                html += `
+                    <tr>
+                        <td><b>ข้อ ${item.question_number}</b></td>
+                        <td>
+                            <div><b>โจทย์:</b> ${item.question_title || '-'}</div>
+                            <small class="text-muted">คำตอบที่ถูกโต้แย้ง: ${item.user_answer || '-'}</small>
+                        </td>
+                        <td>${item.username || item.school || 'ผู้ใช้งาน'}</td>
+                        <td>
+                            <button class="btn-sm btn-success" onclick="approveChallenge(${item.id})">
+                                อนุมัติ (+${item.points_to_add || 1} คะแนน)
+                            </button>
+                            <button class="btn-sm btn-danger" onclick="rejectChallenge(${item.id})">
+                                ปฏิเสธ
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+
+        } catch (error) {
+            console.error("Error loading challenges:", error);
+            container.innerHTML = '<p style="color: red; text-align: center; padding: 20px;">เกิดข้อผิดพลาดในการดึงข้อมูล</p>';
         }
     }
 
+    /* -- อนุมัติ / ปฏิเสธ คำขอชาเลนจ์ -- */
+    async function approveChallenge(id) {
+        if (!confirm('คุณต้องการ "อนุมัติ" คำขอโต้แย้งนี้ใช่หรือไม่?')) return;
+        try {
+            const res = await fetch(`/api/admin/challenges/approve/${id}`, { method: 'POST' });
+            const data = await res.json();
+            alert(data.message || 'อนุมัติคำขอเรียบร้อยแล้ว');
+            loadChallengeList();
+            checkGameState();
+        } catch (err) {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        }
+    }
+
+    async function rejectChallenge(id) {
+        if (!confirm('คุณต้องการ "ปฏิเสธ" คำขอโต้แย้งนี้ใช่หรือไม่?')) return;
+        try {
+            const res = await fetch(`/api/admin/challenges/reject/${id}`, { method: 'POST' });
+            const data = await res.json();
+            alert(data.message || 'ปฏิเสธคำขอเรียบร้อยแล้ว');
+            loadChallengeList();
+            checkGameState();
+        } catch (err) {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        }
+    }
+
+    /* -- 🌟 Render UI ตาม State ที่ได้รับจาก Server -- */
     function renderUI(data) {
         if (!data) return;
         
@@ -585,7 +362,7 @@ function openChallengeModal() {
             document.getElementById('online-users-count').innerText = data.active_users_count;
         }
 
-        // 🌟 [เพิ่มใหม่] เช็คจำนวนคำขอชาเลนจ์เพื่ออัปเดต Badge
+        /* เช็คจำนวนคำขอชาเลนจ์เพื่ออัปเดต Badge */
         if (data.pending_challenges_count !== undefined) {
             const badge = document.getElementById('challenge-badge');
             if (data.pending_challenges_count > 0) {
@@ -696,6 +473,7 @@ function openChallengeModal() {
         }
     }
 
+    /* -- ฟังก์ชันส่งคำสั่งไปยัง API -- */
     async function controlGame(url) {
         if (isActionInProgress) return;
         isActionInProgress = true;
@@ -738,70 +516,178 @@ function openChallengeModal() {
         }
     }
 
-    // Initialize
+    function confirmReset() {
+        if(confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลคะแนนและรีเซ็ตระบบเกมทั้งหมดใช่หรือไม่? (การกระทำนี้ย้อนกลับไม่ได้)")) {
+            controlGame('/api/reset');
+        }
+    }
+
+    /* -- Timer Controls -- */
+    function updateTimerDisplay() {
+        const timerDisplay = document.getElementById('timer-display');
+        if (timeLeft <= 0) {
+            timerDisplay.innerText = `🔒 หมดเวลาส่งคำตอบแล้ว`;
+            return;
+        }
+        if (isPaused) {
+            timerDisplay.innerText = `⏸️ หยุดเวลาชั่วคราว: ${timeLeft} วินาที`;
+            return;
+        }
+        timerDisplay.innerText = `⏱️ เวลาที่เหลือ: ${timeLeft} วินาที`;
+    }
+
+    function runCountdown() {
+        if (isPaused) return;
+        if (timeLeft > 0) {
+            timeLeft--;
+            updateTimerDisplay();
+        } else {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }
+
+    function startTimer(resetTime = true) {
+        if (countdownInterval) clearInterval(countdownInterval);
+        
+        if (resetTime) {
+            const customTime = parseInt(document.getElementById('custom-time-input').value);
+            timeLeft = !isNaN(customTime) && customTime > 0 ? customTime : 120;
+        }
+        
+        isPaused = false;
+        document.getElementById('btn-pause').style.display = 'block';
+        document.getElementById('btn-resume').style.display = 'none';
+        updateTimerDisplay();
+        countdownInterval = setInterval(runCountdown, 1000);
+    }
+
+    function pauseTimer() {
+        isPaused = true;
+        document.getElementById('btn-pause').style.display = 'none';
+        document.getElementById('btn-resume').style.display = 'block';
+        updateTimerDisplay();
+    }
+
+    function resumeTimer() {
+        isPaused = false;
+        document.getElementById('btn-pause').style.display = 'block';
+        document.getElementById('btn-resume').style.display = 'none';
+        updateTimerDisplay();
+    }
+
+    /* -- Table Score Helper -- */
+    function updateScoreBoard(schoolScores) {
+        const tbody = document.getElementById('score-board-body');
+        if (!schoolScores || Object.keys(schoolScores).length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">ยังไม่มีคะแนนสะสม</td></tr>';
+            return;
+        }
+        let arr = Object.keys(schoolScores).map(k => ({ name: k, score: schoolScores[k] })).sort((a,b) => b.score - a.score);
+        tbody.innerHTML = arr.map((item, i) => `<tr><td><strong>${i+1}</strong></td><td>${item.name}</td><td><span style="color:#2196f3; font-weight:bold;">${item.score} คะแนน</span></td></tr>`).join('');
+    }
+
+    /* -- Fullscreen -- */
+    function toggleFullscreen() {
+        const elem = document.getElementById('fullscreen-target');
+        if (!document.fullscreenElement) {
+            elem.requestFullscreen().catch(err => alert(`ไม่สามารถเปิดโหมดเต็มจอได้: ${err.message}`));
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    /* -- Upload Handlers -- */
+    async function importGoogleSheet() {
+        const urlInput = document.getElementById('gsheet-url').value.trim();
+        if (!urlInput) { alert("⚠️ กรุณาวางลิงก์ Google Sheets ก่อนครับ"); return; }
+        const btnGsheet = document.getElementById('btn-gsheet');
+        btnGsheet.disabled = true; btnGsheet.innerText = "กำลังดึงข้อมูล...";
+        try {
+            const res = await fetch('/api/import-gsheet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: urlInput })
+            });
+            const data = await res.json();
+            alert(data.message);
+            if (data.status === "success") {
+                document.getElementById('gsheet-url').value = "";
+                closeEditModal(); checkGameState();
+            }
+        } catch (err) {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
+        } finally {
+            btnGsheet.disabled = false; btnGsheet.innerText = "📊 โหลดข้อมูลจาก Google Sheets";
+        }
+    }
+
+    async function uploadQuestions() {
+        const fileInput = document.getElementById('question-file');
+        const file = fileInput.files[0];
+        if (!file) { alert("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด"); return; }
+        const formData = new FormData();
+        formData.append("file", file);
+        const btnUpload = document.getElementById('btn-upload');
+        btnUpload.disabled = true; btnUpload.innerText = "กำลังอัปโหลด...";
+        try {
+            const res = await fetch('/api/upload-questions', { method: 'POST', body: formData });
+            const data = await res.json();
+            alert(data.message);
+            if (data.status === "success") {
+                fileInput.value = ""; closeEditModal(); checkGameState();
+            }
+        } catch (err) {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
+        } finally {
+            btnUpload.disabled = false; btnUpload.innerText = "📤 อัปโหลดไฟล์เอกสาร";
+        }
+    }
+
+    async function uploadImageQuestion() {
+        const fileInput = document.getElementById('image-file');
+        const questionInput = document.getElementById('image-question-text');
+        const answerInput = document.getElementById('image-answer-text');
+        const numberInput = document.getElementById('image-question-number');
+        
+        const file = fileInput.files[0];
+        const question = questionInput.value.trim();
+        const answer = answerInput.value.trim();
+        const questionNumber = numberInput.value.trim(); 
+
+        if (!questionNumber) { alert("⚠️ กรุณาระบุข้อที่ต้องการแทรกรูปด้วยครับ"); return; }
+        if (!file) { alert("⚠️ กรุณาเลือกไฟล์รูปภาพ .jpg หรือ .png ก่อนครับ"); return; }
+        if (!answer) { alert("⚠️ กรุณาระบุเฉลยสำหรับข้อนี้ด้วยครับ"); return; }
+
+        const formData = new FormData();
+        formData.append("question_number", questionNumber); 
+        formData.append("file", file);
+        formData.append("question", question);
+        formData.append("answer", answer); 
+
+        const btnUploadImg = document.getElementById('btn-upload-img');
+        btnUploadImg.disabled = true; btnUploadImg.innerText = "กำลังอัปโหลด...";
+
+        try {
+            const res = await fetch('/api/upload-image-question', { method: 'POST', body: formData });
+            const data = await res.json();
+            alert(data.message);
+            if (data.status === "success") {
+                fileInput.value = ""; questionInput.value = ""; answerInput.value = ""; numberInput.value = ""; 
+                closeEditModal(); checkGameState();
+            }
+        } catch (err) {
+            alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ");
+        } finally {
+            btnUploadImg.disabled = false; btnUploadImg.innerText = "🖼️ อัปโหลดโจทย์รูปภาพและเฉลย";
+        }
+    }
+
+    /* -- Initialize -- */
     stateCheckInterval = setInterval(checkGameState, 2000);
     window.onload = function() {
         checkGameState();
-        fetchChallenges(); // เรียกเช็คคำขอชาเลนจ์เมื่อโหลดหน้า
     };
-
-    // ฟังก์ชันดึงรายการโต้แย้งมาแสดง
-async function loadChallengeList() {
-  const container = document.getElementById('challenge-container'); // กล่องแสดงผลใน Modal
-  
-  try {
-    const response = await fetch('/api/admin/challenges/pending');
-    const requests = await response.json();
-
-    if (requests.length === 0) {
-      container.innerHTML = '<p class="text-center">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
-      return;
-    }
-
-    // สร้างตาราง/รายการแสดงข้อสอบและปุ่มกด
-    let html = `
-      <table class="table">
-        <thead>
-          <tr>
-            <th>ข้อที่</th>
-            <th>โจทย์ / คำตอบของผู้เล่น</th>
-            <th>ผู้ส่งคำขอ</th>
-            <th>การจัดการ</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    requests.forEach(item => {
-      html += `
-        <tr>
-          <td><b>ข้อ ${item.question_number}</b></td>
-          <td>
-            <div><b>โจทย์:</b> ${item.question_title}</div>
-            <small class="text-muted">คำตอบที่ถูกโต้แย้ง: ${item.user_answer}</small>
-          </td>
-          <td>${item.username}</td>
-          <td>
-            <button class="btn btn-success btn-sm" onclick="approveChallenge(${item.id})">
-              อนุมัติ (+${item.points_to_add} คะแนน)
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="rejectChallenge(${item.id})">
-              ปฏิเสธ
-            </button>
-          </td>
-        </tr>
-      `;
-    });
-
-    html += '</tbody></table>';
-    container.innerHTML = html;
-
-  } catch (error) {
-    console.error("Error loading challenges:", error);
-    container.innerHTML = '<p style="color: red;">เกิดข้อผิดพลาดในการดึงข้อมูล</p>';
-  }
-}
-   
 </script>
 </body>
 </html>

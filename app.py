@@ -495,7 +495,6 @@ def submit_challenge():
     data = request.get_json() or {}
     email = (session.get('email') or data.get('email', '')).strip().lower()
     username = session.get('name') or data.get('username', 'ผู้เล่น')
-    school = session.get('school') or data.get('school', 'ไม่ระบุสังกัด')
     q_num = data.get('question_number')
     reason = data.get('reason', '').strip()
 
@@ -506,6 +505,17 @@ def submit_challenge():
         db = load_db()
         challenges = db.get("challenges", [])
         
+        # 🔍 ค้นหาชื่อโรงเรียน/ทีมที่แท้จริงของผู้เล่นจาก session หรือ current_answers
+        school = session.get('school') or data.get('school', '')
+        if not school or school == "ไม่ระบุสังกัด":
+            player_in_answers = db.get("current_answers", {}).get(email, {})
+            found_school = player_in_answers.get("school")
+            if found_school and found_school != "ไม่ระบุสังกัด":
+                school = found_school
+        
+        if not school:
+            school = "ไม่ระบุสังกัด"
+
         # ตรวจสอบว่าเคยส่งคำขอโต้แย้งข้อนี้ไปหรือยัง
         existing = any(
             c for c in challenges
@@ -518,7 +528,7 @@ def submit_challenge():
             "id": len(challenges) + 1,
             "email": email,
             "username": username,
-            "school": school,
+            "school": school, # บันทึกสังกัดจริงของผู้เล่น
             "question_number": int(q_num),
             "question_title": data.get("question_title", f"โจทย์ข้อที่ {q_num}"),
             "user_answer": data.get("user_answer", "-"),
@@ -566,7 +576,6 @@ def approve_challenge(challenge_id):
         item["status"] = "approved"
 
         player_email = item.get("email", "").strip().lower()
-        school_name = item.get("school", "").strip() or "ไม่ระบุสังกัด"
         username = item.get("username", "ผู้เล่น")
         q_num = item.get("question_number", 0)
         user_ans = item.get("user_answer", "")
@@ -575,15 +584,29 @@ def approve_challenge(challenge_id):
         if not player_email:
             return jsonify({"status": "error", "message": "ไม่พบ Email ของผู้เล่นในรายการนี้"}), 400
 
-        # 2. 🎯 เพิ่มคะแนนส่วนตัวให้ User คนที่โดนอนุมัติโดยตรง
+        # 🔍 ดึงชื่อโรงเรียนของผู้เล่น
+        school_name = item.get("school", "").strip()
+        
+        # 🛡️ ระบบป้องกัน: ถ้าสังกัดในรายการเป็น "ไม่ระบุสังกัด" ให้ไปค้นหาสังกัดจริงของผู้เล่นจากประวัติการตอบคำถาม
+        if not school_name or school_name == "ไม่ระบุสังกัด":
+            pdata = db.get("current_answers", {}).get(player_email, {})
+            if pdata.get("school") and pdata.get("school") != "ไม่ระบุสังกัด":
+                school_name = pdata.get("school")
+        
+        if not school_name:
+            school_name = "ไม่ระบุสังกัด"
+
+        item["school"] = school_name # อัปเดตกลับเข้า item เพื่อซิงก์ลง Google Sheet ได้ถูกต้อง
+
+        # 2. 🎯 เพิ่มคะแนนส่วนตัวให้ User คนนั้นโดยตรง
         db["player_scores"][player_email] = db["player_scores"].get(player_email, 0) + points
 
-        # 3. 🏆 เพิ่มคะแนนสะสมให้ทีม/โรงเรียนของผู้เล่นคนนั้น
+        # 3. 🏆 เพิ่มคะแนนสะสมให้โรงเรียน/ทีมจริงของผู้เล่นคนนั้น
         db["school_scores"][school_name] = db["school_scores"].get(school_name, 0) + points
 
         save_db(db)
 
-    # 4. 🔄 ส่งข้อมูลบันทึกลง Google Sheets เบื้องหลัง
+    # 4. 🔄 ส่งข้อมูลบันทึกลง Google Sheets
     threading.Thread(
         target=send_to_gsheet,
         args=(player_email, username, school_name, q_num, f"[อนุมัติโต้แย้ง] {user_ans}")

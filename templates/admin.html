@@ -272,60 +272,67 @@
     function closeChallengeModal() { document.getElementById('challenge-admin-modal').style.display = 'none'; }
     function closeChallengeModalOutside(e) { if (e.target.id === 'challenge-admin-modal') closeChallengeModal(); }
 
-    /* -- ฟังก์ชันดึงรายการโต้แย้งมาแสดง -- */
-    async function loadChallengeList() {
-        const container = document.getElementById('challenge-container');
-        try {
-            const response = await fetch('/api/admin/challenges/pending');
-            const requests = await response.json();
-
-            if (!requests || requests.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
-                return;
-            }
-
-            let html = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th style="width: 15%;">ข้อที่</th>
-                            <th style="width: 40%;">โจทย์ / คำตอบของผู้เล่น</th>
-                            <th style="width: 20%;">ผู้ส่งคำขอ</th>
-                            <th style="width: 25%;">การจัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            requests.forEach(item => {
-                html += `
-                    <tr>
-                        <td><b>ข้อ ${item.question_number}</b></td>
-                        <td>
-                            <div><b>โจทย์:</b> ${item.question_title || '-'}</div>
-                            <small class="text-muted">คำตอบที่ถูกโต้แย้ง: ${item.user_answer || '-'}</small>
-                        </td>
-                        <td>${item.username || item.school || 'ผู้ใช้งาน'}</td>
-                        <td>
-                            <button class="btn-sm btn-success" onclick="approveChallenge(${item.id})">
-                                อนุมัติ (+${item.points_to_add || 1} คะแนน)
-                            </button>
-                            <button class="btn-sm btn-danger" onclick="rejectChallenge(${item.id})">
-                                ปฏิเสธ
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            html += '</tbody></table>';
-            container.innerHTML = html;
-
-        } catch (error) {
-            console.error("Error loading challenges:", error);
-            container.innerHTML = '<p style="color: red; text-align: center; padding: 20px;">เกิดข้อผิดพลาดในการดึงข้อมูล</p>';
+   async function loadChallengeList() {
+    const container = document.getElementById('challenge-container');
+    container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">กำลังโหลดข้อมูล...</p>';
+    
+    try {
+        const response = await fetch('/api/admin/challenges/pending');
+        
+        // ตรวจสอบว่า HTTP Status Code สำเร็จหรือไม่ (เช่น 200 OK)
+        if (!response.ok) {
+            throw new Error(`HTTP Error ${response.status}: ไม่พบ Endpoint หรือ Server ขัดข้อง`);
         }
+
+        const requests = await response.json();
+
+        if (!Array.isArray(requests) || requests.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
+            return;
+        }
+
+        let html = `
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">ข้อที่</th>
+                        <th style="width: 40%;">โจทย์ / คำตอบของผู้เล่น</th>
+                        <th style="width: 20%;">ผู้ส่งคำขอ</th>
+                        <th style="width: 25%;">การจัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        requests.forEach(item => {
+            html += `
+                <tr>
+                    <td><b>ข้อ ${item.question_number}</b></td>
+                    <td>
+                        <div><b>โจทย์:</b> ${item.question_title || '-'}</div>
+                        <small class="text-muted">คำตอบที่ถูกโต้แย้ง: ${item.user_answer || '-'}</small>
+                    </td>
+                    <td>${item.username || item.school || 'ผู้ใช้งาน'}</td>
+                    <td>
+                        <button class="btn-sm btn-success" onclick="approveChallenge(${item.id})">
+                            อนุมัติ (+${item.points_to_add || 1} คะแนน)
+                        </button>
+                        <button class="btn-sm btn-danger" onclick="rejectChallenge(${item.id})">
+                            ปฏิเสธ
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error("Error loading challenges:", error);
+        container.innerHTML = `<p style="color: red; text-align: center; padding: 20px;">เกิดข้อผิดพลาดในการดึงข้อมูล<br><small>(${error.message})</small></p>`;
     }
+}
 
     /* -- อนุมัติ / ปฏิเสธ คำขอชาเลนจ์ -- */
     async function approveChallenge(id) {

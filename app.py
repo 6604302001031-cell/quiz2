@@ -871,7 +871,9 @@ def get_my_score():
     return jsonify({"score": score})
 
 
-# API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์ (ส่วนที่ถูกตัดจบเดิม)
+# ==========================================
+# API สำหรับรับการอัปเดตคะแนนตรงจากตัว Google Sheet แบบเรียลไทม์
+# ==========================================
 @app.route('/api/sheet-update-score', methods=['POST'])
 def sheet_update_score():
     data = request.json or {}
@@ -886,9 +888,18 @@ def sheet_update_score():
         new_score = int(new_score)
         with data_lock:
             db = load_db()
+            
+            # คำนวณหาผลต่างคะแนนเก่ากับใหม่ เพื่อเอาไปบวกเพิ่มให้โรงเรียนได้อย่างถูกต้อง
+            old_player_score = db["player_scores"].get(email, 0)
+            score_diff = new_score - old_player_score
+            
+            # อัปเดตคะแนนผู้เล่น
             db["player_scores"][email] = new_score
+            
+            # อัปเดตคะแนนโรงเรียนด้วยผลต่าง
             if school:
-                db["school_scores"][school] = db["school_scores"].get(school, 0) + new_score
+                db["school_scores"][school] = db["school_scores"].get(school, 0) + score_diff
+                
             save_db(db)
         return jsonify({"status": "success", "message": "อัปเดตคะแนนสำเร็จ"})
     except ValueError:
@@ -897,27 +908,32 @@ def sheet_update_score():
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
 
-challenges_db = [] 
-
+# ==========================================
 # 1. API ฝั่งผู้เล่น: ส่งคำขอโต้แย้งคำตอบ
 # ==========================================
 @app.route('/api/challenge', methods=['POST'])
 def submit_challenge():
     data = request.get_json() or {}
     
-    # ดึงค่าที่ส่งมาจากผู้เล่น และกำหนดค่า Default
-    new_challenge = {
-        "id": len(challenges_db) + 1,
-        "question_number": data.get("question_number", 1),
-        "question_title": data.get("question_title", "โจทย์ข้อนี้"),
-        "user_answer": data.get("user_answer", "-"),
-        "username": data.get("username", "ผู้เล่น"),
-        "school": data.get("school", "ไม่ระบุทีม"),
-        "points_to_add": int(data.get("points_to_add", 1)),
-        "status": "pending"  # ⚠️ จุดสำคัญ: ต้องกำหนดสถานะเป็น 'pending' เสมอ
-    }
-    
-    challenges_db.append(new_challenge)
+    with data_lock:
+        db = load_db()
+        challenges = db.get("challenges", [])
+        
+        new_challenge = {
+            "id": len(challenges) + 1,
+            "question_number": data.get("question_number", 1),
+            "question_title": data.get("question_title", "โจทย์ข้อนี้"),
+            "user_answer": data.get("user_answer", "-"),
+            "username": data.get("username", "ผู้เล่น"),
+            "school": data.get("school", "ไม่ระบุทีม"),
+            "points_to_add": int(data.get("points_to_add", 1)),
+            "status": "pending"
+        }
+        
+        challenges.append(new_challenge)
+        db["challenges"] = challenges
+        save_db(db)
+        
     return jsonify({"status": "success", "message": "ส่งคำขอโต้แย้งเรียบร้อยแล้ว"}), 200
 
 
@@ -926,10 +942,10 @@ def submit_challenge():
 # ==========================================
 @app.route('/api/admin/challenges/pending', methods=['GET'])
 def get_pending_challenges():
-    # กรองเฉพาะรายการที่ status == 'pending'
-    pending_list = [c for c in challenges_db if c.get("status") == "pending"]
+    db = load_db()
+    challenges = db.get("challenges", [])
+    pending_list = [c for c in challenges if c.get("status") == "pending"]
     
-    # ⚠️ สำคัญ: ต้อง return ออกไปเป็น List/Array ตรงๆ [...]
     return jsonify(pending_list), 200
 
 
@@ -938,21 +954,29 @@ def get_pending_challenges():
 # ==========================================
 @app.route('/api/admin/challenges/approve/<int:challenge_id>', methods=['POST'])
 def approve_challenge(challenge_id):
-    item = next((c for c in challenges_db if c["id"] == challenge_id), None)
-    
-    if not item:
-        return jsonify({"status": "error", "message": "ไม่พบรายการนี้"}), 404
+    with data_lock:
+        db = load_db()
+        challenges = db.get("challenges", [])
+        item = next((c for c in challenges if c["id"] == challenge_id), None)
+        
+        if not item:
+            return jsonify({"status": "error", "message": "ไม่พบรายการนี้"}), 404
 
-    if item["status"] != "pending":
-        return jsonify({"status": "error", "message": "รายการนี้ถูกจัดการไปแล้ว"}), 400
+        if item["status"] != "pending":
+            return jsonify({"status": "error", "message": "รายการนี้ถูกจัดการไปแล้ว"}), 400
 
-    # 1. เปลี่ยนสถานะรายการเป็นอนุมัติ
-    item["status"] = "approved"
+        # 1. เปลี่ยนสถานะรายการเป็นอนุมัติ
+        item["status"] = "approved"
 
-    # 2. เพิ่มคะแนนให้ทีม/โรงเรียนนั้นๆ ทันที
-    team_name = item.get("school") or item.get("username")
-    points = item.get("points_to_add", 1)
-    school_scores[team_name] = school_scores.get(team_name, 0) + points
+        # 2. เพิ่มคะแนนให้ทีม/โรงเรียนลงใน Database กลาง
+        team_name = item.get("school") or item.get("username")
+        points = item.get("points_to_add", 1)
+        
+        if "school_scores" not in db:
+            db["school_scores"] = {}
+            
+        db["school_scores"][team_name] = db["school_scores"].get(team_name, 0) + points
+        save_db(db)
 
     return jsonify({"status": "success", "message": f"อนุมัติสำเร็จ (+{points} คะแนน)"}), 200
 
@@ -962,30 +986,36 @@ def approve_challenge(challenge_id):
 # ==========================================
 @app.route('/api/admin/challenges/reject/<int:challenge_id>', methods=['POST'])
 def reject_challenge(challenge_id):
-    item = next((c for c in challenges_db if c["id"] == challenge_id), None)
-    
-    if not item:
-        return jsonify({"status": "error", "message": "ไม่พบรายการนี้"}), 404
+    with data_lock:
+        db = load_db()
+        challenges = db.get("challenges", [])
+        item = next((c for c in challenges if c["id"] == challenge_id), None)
+        
+        if not item:
+            return jsonify({"status": "error", "message": "ไม่พบรายการนี้"}), 404
 
-    item["status"] = "rejected"
+        item["status"] = "rejected"
+        save_db(db)
+        
     return jsonify({"status": "success", "message": "ปฏิเสธคำขอเรียบร้อยแล้ว"}), 200
 
 
 # ==========================================
-# 5. API เช็คสถานะเกมหลัก (สำหรับอัปเดต Badge แอดมิน)
+# 5. API เช็คสถานะเกมหลัก (ดึงข้อมูลล่าสุดจาก DB)
 # ==========================================
 @app.route('/api/state', methods=['GET'])
 def get_game_state():
-    # นับจำนวนคำขอที่ค้างอยู่
-    pending_count = sum(1 for c in challenges_db if c.get("status") == "pending")
+    db = load_db()
+    challenges = db.get("challenges", [])
+    pending_count = sum(1 for c in challenges if c.get("status") == "pending")
 
     return jsonify({
         "is_started": True,
         "current_number": 1,
         "question": "โจทย์ตัวอย่าง...",
         "answer": "เฉลยตัวอย่าง...",
-        "pending_challenges_count": pending_count,  # 🌟 ตัวเลขนี้จะไปโชว์ที่ Badge ปุ่มแอดมิน
-        "school_scores": school_scores
+        "pending_challenges_count": pending_count,
+        "school_scores": db.get("school_scores", {})  # ดึงคะแนนจริงจาก Database
     }), 200
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

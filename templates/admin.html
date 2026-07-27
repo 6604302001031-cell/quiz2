@@ -682,6 +682,63 @@
         checkGameState();
         fetchChallenges(); // เรียกเช็คคำขอชาเลนจ์เมื่อโหลดหน้า
     };
+
+    // ฟังก์ชันดึงรายการโต้แย้งมาแสดง
+async function loadChallengeList() {
+  const container = document.getElementById('challenge-container'); // กล่องแสดงผลใน Modal
+  
+  try {
+    const response = await fetch('/api/admin/challenges/pending');
+    const requests = await response.json();
+
+    if (requests.length === 0) {
+      container.innerHTML = '<p class="text-center">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
+      return;
+    }
+
+    // สร้างตาราง/รายการแสดงข้อสอบและปุ่มกด
+    let html = `
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ข้อที่</th>
+            <th>โจทย์ / คำตอบของผู้เล่น</th>
+            <th>ผู้ส่งคำขอ</th>
+            <th>การจัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    requests.forEach(item => {
+      html += `
+        <tr>
+          <td><b>ข้อ ${item.question_number}</b></td>
+          <td>
+            <div><b>โจทย์:</b> ${item.question_title}</div>
+            <small class="text-muted">คำตอบที่ถูกโต้แย้ง: ${item.user_answer}</small>
+          </td>
+          <td>${item.username}</td>
+          <td>
+            <button class="btn btn-success btn-sm" onclick="approveChallenge(${item.id})">
+              อนุมัติ (+${item.points_to_add} คะแนน)
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="rejectChallenge(${item.id})">
+              ปฏิเสธ
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error("Error loading challenges:", error);
+    container.innerHTML = '<p style="color: red;">เกิดข้อผิดพลาดในการดึงข้อมูล</p>';
+  }
+}
    
 </script>
 </body>

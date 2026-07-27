@@ -897,32 +897,34 @@ def sheet_update_score():
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
 
-# API 1: ดึงรายการคำขอโต้แย้งที่ค้างอยู่ (PENDING)
+challenges_db = [] 
+
+# 1. API สำหรับผู้เล่นส่งคำขอโต้แย้งเข้ามา
+@app.route('/api/challenge', methods=['POST'])
+def submit_challenge():
+    data = request.json
+    
+    new_challenge = {
+        "id": len(challenges_db) + 1,
+        "question_number": data.get("question_number"),
+        "question_title": data.get("question_title", "โจทย์ข้อนี้"),
+        "user_answer": data.get("user_answer"),
+        "username": data.get("username", "ผู้เล่น"),
+        "points_to_add": data.get("points_to_add", 1),
+        "status": "pending"  # ⚠️ ต้องกำหนดเป็น pending ไว้เสมอ
+    }
+    
+    challenges_db.append(new_challenge)
+    return jsonify({"status": "success", "message": "ส่งคำขอโต้แย้งเรียบร้อยแล้ว"}), 200
+
+# 2. API สำหรับแอดมินดึงเฉพาะรายการที่รออนุมัติ (Pending)
 @app.route('/api/admin/challenges/pending', methods=['GET'])
 def get_pending_challenges():
-    # ดึงข้อมูลจาก Database หรือตัวแปรชั่วคราว
-    pending_list = [
-        # ตัวอย่างโครงสร้าง Data ที่ต้อง return ออกไป
-        # {
-        #     "id": 1,
-        #     "question_number": 3,
-        #     "question_title": "1 + 1 เท่ากับเท่าไร?",
-        #     "user_answer": "3",
-        #     "username": "โรงเรียนสาธิต...",
-        #     "points_to_add": 1
-        # }
-    ]
+    # กรองเอาเฉพาะรายการที่ status เป็น pending
+    pending_list = [c for c in challenges_db if c.get("status") == "pending"]
+    
+    # ⚠️ คืนค่าเป็น Array ตรงๆ [ {...}, {...} ]
     return jsonify(pending_list), 200
-
-@app.route('/api/admin/challenges/approve/<int:challenge_id>', methods=['POST'])
-def approve_challenge(challenge_id):
-    # โค้ดสำหรับอัปเดตสถานะและเพิ่มคะแนน
-    return jsonify({"status": "success", "message": "อนุมัติคำขอเรียบร้อยแล้ว"}), 200
-
-@app.route('/api/admin/challenges/reject/<int:challenge_id>', methods=['POST'])
-def reject_challenge(challenge_id):
-    # โค้ดสำหรับปฏิเสธคำขอ
-    return jsonify({"status": "success", "message": "ปฏิเสธคำขอเรียบร้อยแล้ว"}), 200
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
    

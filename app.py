@@ -899,32 +899,94 @@ def sheet_update_score():
 
 challenges_db = [] 
 
-# 1. API สำหรับผู้เล่นส่งคำขอโต้แย้งเข้ามา
+# 1. API ฝั่งผู้เล่น: ส่งคำขอโต้แย้งคำตอบ
+# ==========================================
 @app.route('/api/challenge', methods=['POST'])
 def submit_challenge():
-    data = request.json
+    data = request.get_json() or {}
     
+    # ดึงค่าที่ส่งมาจากผู้เล่น และกำหนดค่า Default
     new_challenge = {
         "id": len(challenges_db) + 1,
-        "question_number": data.get("question_number"),
+        "question_number": data.get("question_number", 1),
         "question_title": data.get("question_title", "โจทย์ข้อนี้"),
-        "user_answer": data.get("user_answer"),
+        "user_answer": data.get("user_answer", "-"),
         "username": data.get("username", "ผู้เล่น"),
-        "points_to_add": data.get("points_to_add", 1),
-        "status": "pending"  # ⚠️ ต้องกำหนดเป็น pending ไว้เสมอ
+        "school": data.get("school", "ไม่ระบุทีม"),
+        "points_to_add": int(data.get("points_to_add", 1)),
+        "status": "pending"  # ⚠️ จุดสำคัญ: ต้องกำหนดสถานะเป็น 'pending' เสมอ
     }
     
     challenges_db.append(new_challenge)
     return jsonify({"status": "success", "message": "ส่งคำขอโต้แย้งเรียบร้อยแล้ว"}), 200
 
-# 2. API สำหรับแอดมินดึงเฉพาะรายการที่รออนุมัติ (Pending)
+
+# ==========================================
+# 2. API ฝั่งแอดมิน: ดึงรายการโต้แย้งที่รออนุมัติ (Pending)
+# ==========================================
 @app.route('/api/admin/challenges/pending', methods=['GET'])
 def get_pending_challenges():
-    # กรองเอาเฉพาะรายการที่ status เป็น pending
+    # กรองเฉพาะรายการที่ status == 'pending'
     pending_list = [c for c in challenges_db if c.get("status") == "pending"]
     
-    # ⚠️ คืนค่าเป็น Array ตรงๆ [ {...}, {...} ]
+    # ⚠️ สำคัญ: ต้อง return ออกไปเป็น List/Array ตรงๆ [...]
     return jsonify(pending_list), 200
+
+
+# ==========================================
+# 3. API ฝั่งแอดมิน: กดอนุมัติคำขอ (Approve)
+# ==========================================
+@app.route('/api/admin/challenges/approve/<int:challenge_id>', methods=['POST'])
+def approve_challenge(challenge_id):
+    item = next((c for c in challenges_db if c["id"] == challenge_id), None)
+    
+    if not item:
+        return jsonify({"status": "error", "message": "ไม่พบรายการนี้"}), 404
+
+    if item["status"] != "pending":
+        return jsonify({"status": "error", "message": "รายการนี้ถูกจัดการไปแล้ว"}), 400
+
+    # 1. เปลี่ยนสถานะรายการเป็นอนุมัติ
+    item["status"] = "approved"
+
+    # 2. เพิ่มคะแนนให้ทีม/โรงเรียนนั้นๆ ทันที
+    team_name = item.get("school") or item.get("username")
+    points = item.get("points_to_add", 1)
+    school_scores[team_name] = school_scores.get(team_name, 0) + points
+
+    return jsonify({"status": "success", "message": f"อนุมัติสำเร็จ (+{points} คะแนน)"}), 200
+
+
+# ==========================================
+# 4. API ฝั่งแอดมิน: กดปฏิเสธคำขอ (Reject)
+# ==========================================
+@app.route('/api/admin/challenges/reject/<int:challenge_id>', methods=['POST'])
+def reject_challenge(challenge_id):
+    item = next((c for c in challenges_db if c["id"] == challenge_id), None)
+    
+    if not item:
+        return jsonify({"status": "error", "message": "ไม่พบรายการนี้"}), 404
+
+    item["status"] = "rejected"
+    return jsonify({"status": "success", "message": "ปฏิเสธคำขอเรียบร้อยแล้ว"}), 200
+
+
+# ==========================================
+# 5. API เช็คสถานะเกมหลัก (สำหรับอัปเดต Badge แอดมิน)
+# ==========================================
+@app.route('/api/state', methods=['GET'])
+def get_game_state():
+    # นับจำนวนคำขอที่ค้างอยู่
+    pending_count = sum(1 for c in challenges_db if c.get("status") == "pending")
+
+    return jsonify({
+        "is_started": True,
+        "current_number": 1,
+        "question": "โจทย์ตัวอย่าง...",
+        "answer": "เฉลยตัวอย่าง...",
+        "pending_challenges_count": pending_count,  # 🌟 ตัวเลขนี้จะไปโชว์ที่ Badge ปุ่มแอดมิน
+        "school_scores": school_scores
+    }), 200
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
    

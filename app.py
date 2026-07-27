@@ -897,44 +897,13 @@ def sheet_update_score():
         return jsonify({"status": "error", "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
 
-# API 1: ดึงรายการคำขอโต้แย้งที่ค้างอยู่
-@app.route('/api/admin/challenges/pending', methods=['GET'])
-def get_pending_challenges():
-    # เขียนคำสั่ง SQL ดึงข้อสอบ, ชื่อผู้เล่น, คะแนน มาแสดง
-    return jsonify(challenges_list)
-
-
-# API 2: อนุมัติคำขอ (เปลี่ยนสถานะ + เพิ่มคะแนนให้ User)
-@app.route('/api/admin/challenge/approve', methods=['POST'])
-def approve_challenge():
-    data = request.json
-    challenge_id = data.get('challenge_id')
-    
-    # 1. อัปเดตสถานะคำขอเป็น 'APPROVED'
-    # 2. ค้นหาคะแนนของข้อนั้น แล้ว UPDATE เพิ่มคะแนนให้ User
-    
-    return jsonify({"success": True, "message": "อนุมัติเรียบร้อย เพิ่มคะแนนแล้ว"})
-
-
-# API 3: ปฏิเสธคำขอ (เปลี่ยนสถานะอย่างเดียว ไม่เพิ่มคะแนน)
-@app.route('/api/admin/challenge/reject', methods=['POST'])
-def reject_challenge():
-    data = request.json
-    challenge_id = data.get('challenge_id')
-    
-    # 1. อัปเดตสถานะคำขอเป็น 'REJECTED'
-    
-    return jsonify({"success": True, "message": "ปฏิเสธคำขอแล้ว"})
-    from flask import Flask, request, jsonify
-# import ไลบรารีตารางข้อมูลของคุณตามปกติ เช่น import sqlite3 หรือ pymysql
-
-# 1. API สำหรับดึงรายการคำขอที่ค้างอยู่ (PENDING)
+# API 1: ดึงรายการคำขอโต้แย้งที่ค้างอยู่ (PENDING)
 @app.route('/api/admin/challenges', methods=['GET'])
 def get_pending_challenges():
-    conn = get_db_connection() # ฟังก์ชันเชื่อมต่อ DB ของคุณ
+    conn = get_db_connection()  # เปลี่ยนเป็นชื่อฟังก์ชันเชื่อมต่อ DB ของคุณ
     cursor = conn.cursor()
     
-    # Query ดึงข้อมูลคำขอ + ข้อสอบ + ชื่อผู้เล่น
+    # คำสั่ง SQL ดึงข้อมูลคำขอ + ชื่อผู้ใช้ + ข้อสอบ
     cursor.execute('''
         SELECT c.id, c.question_no, c.question_title, c.user_answer, c.points, u.username 
         FROM challenges c
@@ -948,7 +917,7 @@ def get_pending_challenges():
     return jsonify({"success": True, "challenges": challenges})
 
 
-# 2. API อนุมัติ (Approve) -> เปลี่ยนสถานะ + เพิ่มคะแนน User
+# API 2: อนุมัติคำขอ (เปลี่ยนสถานะเป็น APPROVED + เพิ่มคะแนนให้ User)
 @app.route('/api/admin/challenge/approve', methods=['POST'])
 def approve_challenge():
     data = request.json
@@ -957,7 +926,7 @@ def approve_challenge():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # ดึง user_id และคะแนนของข้อนั้นมา
+    # 1. ค้นหา user_id และคะแนนของข้อนั้น
     cursor.execute('SELECT user_id, points FROM challenges WHERE id = ?', (challenge_id,))
     item = cursor.fetchone()
 
@@ -965,17 +934,17 @@ def approve_challenge():
         conn.close()
         return jsonify({"success": False, "message": "ไม่พบรายการคำขอ"}), 404
 
-    # อัปเดตสถานะเป็น APPROVED และบวกคะแนนเพิ่มให้ผู้เล่น
+    # 2. เปลี่ยนสถานะคำขอเป็น 'APPROVED' และเพิ่มคะแนนให้ User
     cursor.execute('UPDATE challenges SET status = "APPROVED" WHERE id = ?', (challenge_id,))
     cursor.execute('UPDATE users SET score = score + ? WHERE id = ?', (item['points'], item['user_id']))
 
     conn.commit()
     conn.close()
 
-    return jsonify({"success": True, "message": "อนุมัติคำขอและเพิ่มคะแนนเรียบร้อยแล้ว"})
+    return jsonify({"success": True, "message": "อนุมัติคำขอ และบวกคะแนนให้ผู้ใช้เรียบร้อยแล้ว"})
 
 
-# 3. API ปฏิเสธ (Reject) -> เปลี่ยนสถานะอย่างเดียว ไม่แตะคะแนน
+# API 3: ปฏิเสธคำขอ (เปลี่ยนสถานะเป็น REJECTED อย่างเดียว ไม่เพิ่มคะแนน)
 @app.route('/api/admin/challenge/reject', methods=['POST'])
 def reject_challenge():
     data = request.json
@@ -984,14 +953,14 @@ def reject_challenge():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # อัปเดตสถานะเป็น REJECTED (คะแนนผู้เล่นเท่าเดิม)
+    # อัปเดตสถานะเป็น REJECTED (ไม่แตะต้องคะแนนของผู้ใช้)
     cursor.execute('UPDATE challenges SET status = "REJECTED" WHERE id = ?', (challenge_id,))
 
     conn.commit()
     conn.close()
 
     return jsonify({"success": True, "message": "ปฏิเสธคำขอเรียบร้อยแล้ว"})
-    
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
    

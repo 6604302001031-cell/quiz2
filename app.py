@@ -925,6 +925,72 @@ def reject_challenge():
     # 1. อัปเดตสถานะคำขอเป็น 'REJECTED'
     
     return jsonify({"success": True, "message": "ปฏิเสธคำขอแล้ว"})
+    from flask import Flask, request, jsonify
+# import ไลบรารีตารางข้อมูลของคุณตามปกติ เช่น import sqlite3 หรือ pymysql
+
+# 1. API สำหรับดึงรายการคำขอที่ค้างอยู่ (PENDING)
+@app.route('/api/admin/challenges', methods=['GET'])
+def get_pending_challenges():
+    conn = get_db_connection() # ฟังก์ชันเชื่อมต่อ DB ของคุณ
+    cursor = conn.cursor()
+    
+    # Query ดึงข้อมูลคำขอ + ข้อสอบ + ชื่อผู้เล่น
+    cursor.execute('''
+        SELECT c.id, c.question_no, c.question_title, c.user_answer, c.points, u.username 
+        FROM challenges c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.status = 'PENDING'
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    challenges = [dict(row) for row in rows]
+    return jsonify({"success": True, "challenges": challenges})
+
+
+# 2. API อนุมัติ (Approve) -> เปลี่ยนสถานะ + เพิ่มคะแนน User
+@app.route('/api/admin/challenge/approve', methods=['POST'])
+def approve_challenge():
+    data = request.json
+    challenge_id = data.get('challenge_id')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # ดึง user_id และคะแนนของข้อนั้นมา
+    cursor.execute('SELECT user_id, points FROM challenges WHERE id = ?', (challenge_id,))
+    item = cursor.fetchone()
+
+    if not item:
+        conn.close()
+        return jsonify({"success": False, "message": "ไม่พบรายการคำขอ"}), 404
+
+    # อัปเดตสถานะเป็น APPROVED และบวกคะแนนเพิ่มให้ผู้เล่น
+    cursor.execute('UPDATE challenges SET status = "APPROVED" WHERE id = ?', (challenge_id,))
+    cursor.execute('UPDATE users SET score = score + ? WHERE id = ?', (item['points'], item['user_id']))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "อนุมัติคำขอและเพิ่มคะแนนเรียบร้อยแล้ว"})
+
+
+# 3. API ปฏิเสธ (Reject) -> เปลี่ยนสถานะอย่างเดียว ไม่แตะคะแนน
+@app.route('/api/admin/challenge/reject', methods=['POST'])
+def reject_challenge():
+    data = request.json
+    challenge_id = data.get('challenge_id')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # อัปเดตสถานะเป็น REJECTED (คะแนนผู้เล่นเท่าเดิม)
+    cursor.execute('UPDATE challenges SET status = "REJECTED" WHERE id = ?', (challenge_id,))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "ปฏิเสธคำขอเรียบร้อยแล้ว"})
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
    

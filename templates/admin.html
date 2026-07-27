@@ -224,16 +224,78 @@
     </div>
 </div>
 
-<!-- 🌟 [เพิ่มใหม่] Modal แสดงรายการชาเลนจ์และการอนุมัติ -->
-<div id="challenge-admin-modal" class="modal-overlay" onclick="closeChallengeModalOutside(event)">
-    <div class="modal-content" style="max-width: 600px;">
-        <button class="close-modal-btn" onclick="closeChallengeModal()">&times;</button>
-        <h3 style="margin-top: 0; color: #333;">📢 รายการโต้แย้งคำตอบ (Challenge)</h3>
-        <p style="font-size: 14px; color: #6c757d; margin-bottom: 15px;">หากแอดมินกด "อนุมัติ" ระบบจะปรับสถานะให้เป็นตอบถูก และเพิ่มคะแนนให้ผู้เล่นโดยอัตโนมัติ</p>
-        
-        <div id="challenge-list-container" style="max-height: 380px; overflow-y: auto;">
-            <p style="text-align: center; color: #888;">กำลังโหลดรายการคำขอ...</p>
+// 1. ฟังก์ชันดึงรายการโต้แย้งมาแสดงใน Modal
+async function loadChallenges() {
+  const container = document.getElementById('challenge-list-container');
+  
+  try {
+    const res = await fetch('/api/admin/challenges');
+    const data = await res.json();
+
+    // หากไม่มีรายการค้างอยู่
+    if (!data.success || data.challenges.length === 0) {
+      container.innerHTML = '<p style="text-align: center; color: #888; margin: 20px 0;">ไม่มีรายการโต้แย้งที่ค้างอยู่</p>';
+      return;
+    }
+
+    // วาดรายการข้อสอบ + ปุ่มกด อนุมัติ / ปฏิเสธ
+    let html = '';
+    data.challenges.forEach(item => {
+      html += `
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fff; text-align: left;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong style="color: #333; font-size: 15px;">ข้อที่ ${item.question_no}: ${item.question_title}</strong>
+            <span style="background: #e3f2fd; color: #0d6efd; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">+${item.points} คะแนน</span>
+          </div>
+          <p style="margin: 4px 0; font-size: 13px; color: #555;"><b>ผู้ส่งคำขอ:</b> ${item.username}</p>
+          <p style="margin: 4px 0 12px 0; font-size: 13px; color: #d32f2f;"><b>คำตอบเดิมของผู้เล่น:</b> ${item.user_answer}</p>
+          
+          <div style="display: flex; gap: 8px;">
+            <button onclick="handleChallenge(${item.id}, 'approve')" style="flex: 1; background: #28a745; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+              อนุมัติ (+คะแนน)
+            </button>
+            <button onclick="handleChallenge(${item.id}, 'reject')" style="flex: 1; background: #dc3545; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+              ปฏิเสธ
+            </button>
+          </div>
         </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+  } catch (err) {
+    container.innerHTML = '<p style="text-align: center; color: red; margin: 20px 0;">เกิดข้อผิดพลาดในการดึงข้อมูล</p>';
+  }
+}
+
+// 2. ฟังก์ชันจัดการเมื่อกดปุ่ม "อนุมัติ" หรือ "ปฏิเสธ"
+async function handleChallenge(challengeId, action) {
+  const actionText = action === 'approve' ? 'อนุมัติ (ระบบจะเพิ่มคะแนน)' : 'ปฏิเสธ (ไม่มีการเพิ่มคะแนน)';
+  if (!confirm(`คุณต้องการ "${actionText}" รายการนี้ใช่หรือไม่?`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/challenge/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge_id: challengeId })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      alert(result.message);
+      loadChallenges(); // รีโหลดรายการใหม่ทันที เพื่ออัปเดตหน้าจอ
+    } else {
+      alert('เกิดข้อผิดพลาด: ' + result.message);
+    }
+  } catch (err) {
+    alert('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+  }
+}
+
+// 3. เรียกฟังก์ชันดึงข้อมูลเมื่อแอดมินกดเปิด Modal ชาเลนจ์
+function openChallengeModal() {
+  document.getElementById('challenge-admin-modal').style.display = 'block';
 
         <button onclick="closeChallengeModal()" class="btn btn-blue" style="margin-top: 15px; margin-bottom: 0;">ปิดหน้าต่าง</button>
     </div>

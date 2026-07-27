@@ -344,7 +344,7 @@ def get_state():
             correct_ans = questions[current_idx]["a"]
             img_url = questions[current_idx].get("image_url", "")
             
-            # Check player answer
+            # ตรวจสอบการส่งคำตอบของผู้เล่น
             player_data = db.get("current_answers", {}).get(email)
             if player_data is not None:
                 has_submitted = True
@@ -353,7 +353,7 @@ def get_state():
                 if db.get("is_time_up") or db.get("is_end"):
                     is_correct_val = is_correct(my_answer, correct_ans)
 
-            # Check challenge status
+            # ตรวจสอบสถานะการโต้แย้งของผู้เล่น
             q_num = current_idx + 1
             has_challenged = any(
                 c for c in db.get("challenges", [])
@@ -443,7 +443,7 @@ def get_my_score():
         return jsonify({"score": 0})
     with data_lock:
         db = load_db()
-        score = db["player_scores"].get(email, 0)
+        score = db["player_scores"].get(email.strip().lower(), 0)
     return jsonify({"score": score})
 
 
@@ -562,20 +562,37 @@ def approve_challenge(challenge_id):
         if item["status"] != "pending":
             return jsonify({"status": "error", "message": "รายการนี้ถูกจัดการไปแล้ว"}), 400
 
+        # 1. เปลี่ยนสถานะรายการเป็นอนุมัติ
         item["status"] = "approved"
 
-        player_email = item.get("email")
-        team_name = item.get("school") or item.get("username")
-        points = item.get("points_to_add", 1)
+        player_email = item.get("email", "").strip().lower()
+        school_name = item.get("school", "").strip() or "ไม่ระบุสังกัด"
+        username = item.get("username", "ผู้เล่น")
+        q_num = item.get("question_number", 0)
+        user_ans = item.get("user_answer", "")
+        points = int(item.get("points_to_add", 1))
 
-        if player_email:
-            db["player_scores"][player_email] = db["player_scores"].get(player_email, 0) + points
-        if team_name:
-            db["school_scores"][team_name] = db["school_scores"].get(team_name, 0) + points
+        if not player_email:
+            return jsonify({"status": "error", "message": "ไม่พบ Email ของผู้เล่นในรายการนี้"}), 400
+
+        # 2. 🎯 เพิ่มคะแนนส่วนตัวให้ User คนที่โดนอนุมัติโดยตรง
+        db["player_scores"][player_email] = db["player_scores"].get(player_email, 0) + points
+
+        # 3. 🏆 เพิ่มคะแนนสะสมให้ทีม/โรงเรียนของผู้เล่นคนนั้น
+        db["school_scores"][school_name] = db["school_scores"].get(school_name, 0) + points
 
         save_db(db)
 
-    return jsonify({"status": "success", "message": f"อนุมัติสำเร็จ (+{points} คะแนน)"}), 200
+    # 4. 🔄 ส่งข้อมูลบันทึกลง Google Sheets เบื้องหลัง
+    threading.Thread(
+        target=send_to_gsheet,
+        args=(player_email, username, school_name, q_num, f"[อนุมัติโต้แย้ง] {user_ans}")
+    ).start()
+
+    return jsonify({
+        "status": "success", 
+        "message": f"อนุมัติสำเร็จ! เพิ่ม {points} คะแนนให้ {username} ({school_name}) เรียบร้อยแล้ว"
+    }), 200
 
 
 @app.route('/api/admin/challenges/reject/<int:challenge_id>', methods=['POST'])
